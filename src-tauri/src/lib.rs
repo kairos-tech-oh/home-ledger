@@ -4,12 +4,14 @@
 mod audit;
 mod clock;
 mod commands;
+mod dashboard;
 #[cfg(test)]
 mod history_sync_tests;
 mod market;
 mod planning;
 mod plugin_history;
 mod quotes;
+mod snapshots;
 mod spending;
 mod state;
 mod storage;
@@ -62,6 +64,11 @@ pub fn run() {
             planning::planning,
             spending::spending,
             spending::set_family_members,
+            dashboard::dashboard,
+            snapshots::take_snapshot,
+            snapshots::plugin_snapshots_path,
+            snapshots::snapshot_import_preview,
+            snapshots::snapshot_import,
             market::holding_detail,
             quotes::refresh_prices,
             quotes::save_api_key,

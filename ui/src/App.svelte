@@ -12,6 +12,7 @@
   import Goals from "./Goals.svelte";
   import Planning from "./Planning.svelte";
   import Spending from "./Spending.svelte";
+  import Dashboard from "./Dashboard.svelte";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
 
@@ -24,20 +25,30 @@
   let view = $state<LedgerView | null>(null);
   // Bumped on every reload, for screens that fetch figures of their own.
   let revision = $state(0);
-  let tab = $state<
-    | "accounts"
-    | "holdings"
-    | "retirement"
-    | "income"
-    | "budget"
-    | "savings"
-    | "reconcile"
-    | "spending"
-    | "goals"
-    | "planning"
-    | "history"
-    | "storage"
-  >("accounts");
+  // In the plugin's order: the landing page, what you have, what comes and
+  // goes, what you are aiming at, then the record and the plumbing.
+  const tabs = [
+    ["dashboard", "Dashboard"],
+    ["accounts", "Accounts"],
+    ["holdings", "Holdings"],
+    ["retirement", "Retirement"],
+    ["income", "Income"],
+    ["budget", "Budget"],
+    ["savings", "Savings"],
+    ["reconcile", "Reconcile"],
+    ["spending", "Spending"],
+    ["goals", "Goals"],
+    ["planning", "Planning"],
+    ["history", "History"],
+    ["storage", "Storage"],
+  ] as const;
+  type Tab = (typeof tabs)[number][0];
+  let tab = $state<Tab>("dashboard");
+
+  function open(page: string) {
+    const found = tabs.find(([value]) => value === page);
+    if (found) tab = found[0];
+  }
 
   const firstRun = $derived(setup !== null && !setup.setupComplete);
 
@@ -67,7 +78,23 @@
     } finally {
       busy = false;
     }
-    if (setup?.setupComplete) accrueOnce();
+    if (setup?.setupComplete) {
+      accrueOnce();
+      snapshotOnce();
+    }
+  }
+
+  // One point a day of net worth history, taken the first time the app opens
+  // that day. Its own call, so a failure never stops the ledger loading.
+  let snapped = false;
+  async function snapshotOnce() {
+    if (snapped) return;
+    snapped = true;
+    try {
+      if (await ledgerApi.takeSnapshot()) revision += 1;
+    } catch (e) {
+      console.warn("snapshot not taken", e);
+    }
   }
 
   // Once per launch, as the prototype does: months that went by while the app
@@ -125,21 +152,6 @@
     ];
     return parts.join("  ·  ");
   });
-
-  const tabs = [
-    ["accounts", "Accounts"],
-    ["holdings", "Holdings"],
-    ["retirement", "Retirement"],
-    ["income", "Income"],
-    ["budget", "Budget"],
-    ["savings", "Savings"],
-    ["reconcile", "Reconcile"],
-    ["spending", "Spending"],
-    ["goals", "Goals"],
-    ["planning", "Planning"],
-    ["history", "History"],
-    ["storage", "Storage"],
-  ] as const;
 </script>
 
 <header>
@@ -150,14 +162,6 @@
     {/if}
   </div>
 
-  {#if !firstRun}
-    <nav>
-      {#each tabs as [value, label] (value)}
-        <button class:on={tab === value} onclick={() => (tab = value)}>{label}</button>
-      {/each}
-    </nav>
-  {/if}
-
   <div
     class="sync"
     class:warn-text={sync?.state === "behind"}
@@ -167,6 +171,14 @@
     <button onclick={flush} disabled={busy}>Sync</button>
   </div>
 </header>
+
+{#if !firstRun}
+  <nav>
+    {#each tabs as [value, label] (value)}
+      <button class:on={tab === value} onclick={() => (tab = value)}>{label}</button>
+    {/each}
+  </nav>
+{/if}
 
 <main class="page">
   {#if error}<p class="error">{error}</p>{/if}
@@ -187,6 +199,8 @@
 
   {#if tab === "storage" && setup}
     <Storage {setup} {stores} {firstRun} onchanged={(next) => { setup = next; load(); }} />
+  {:else if tab === "dashboard"}
+    <Dashboard {revision} onchanged={load} onopen={open} />
   {:else if tab === "accounts" && view}
     <Accounts accounts={view.accounts} {overview} onchanged={load} />
   {:else if tab === "holdings" && view}
@@ -244,9 +258,9 @@
   header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 1rem;
-    padding: 0.7rem 1rem 0.5rem;
-    border-bottom: 1px solid var(--hairline);
+    padding: 0.7rem 1rem 0.4rem;
   }
   .title {
     min-width: 0;
@@ -264,10 +278,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* Its own row, wrapping, so every tab stays one click away however narrow
+     the window. */
   nav {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
-    margin-left: auto;
+    padding: 0 1rem 0.5rem;
+    border-bottom: 1px solid var(--hairline);
   }
   nav button.on {
     background: var(--raised-strong);

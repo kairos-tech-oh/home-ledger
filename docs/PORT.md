@@ -10,9 +10,9 @@ checked against.
 
 | Source | Lines | Lands in | Done |
 |---|---:|---|---|
-| `helper/ledger.py` | 2,931 | `ledger-writer` | every op except `dashboard-set`, `prefs` and the snapshot history |
-| `core/Model.js` | 2,188 | `ledger-math` | balance sheet, monthly totals, earners, splits, buckets, planned draws, goals, planning |
-| `core/Spending.js` | 194 | `ledger-math` | `range`, `members`, `analyse` |
+| `helper/ledger.py` | 2,931 | `ledger-writer` | every op; `prefs` became per-machine config, snapshots moved to `src-tauri/src/snapshots.rs` |
+| `core/Model.js` | 2,188 | `ledger-math` | balance sheet, monthly totals, earners, splits, buckets, planned draws, goals, planning, snapshots, dashboard |
+| `core/Spending.js` | 194 | `ledger-math` | all of it; the widget half is in `src-tauri/src/dashboard.rs` |
 | `core/Sanitise.js` | 53 | `ledger-domain` | yes |
 | record schemas | — | `ledger-domain` | yes |
 
@@ -88,6 +88,20 @@ works in dates, both ends included, and a draw dated today counts. Every oracle
 case sits at midnight, where the two agree. Stepping a month from the 31st still
 runs over the way JavaScript's `Date` does (31 January plus a month is 3 March),
 so a recurring draw lands on the same days in both.
+
+The same choice has two more visible effects, both found by
+`tools/oracle-views.mjs` on the real ledger. A window that crosses a clock
+change is an hour longer or shorter in the prototype, so a three-month plan
+from late September came out 0.046% high on every contribution; the port's
+three months are 91 days, not 91 days and an hour. And the dashboard's "last
+reconciled N days ago" counts calendar days, where the prototype's count
+turned over at whatever time of day the statement was settled — so a settle at
+eight last night read as "today" until eight this evening.
+
+**A projected balance is the sum of the parts shown.** The prototype added an
+unrounded contribution to the current balance and rounded once at the end;
+the port rounds the contribution to cents first, so "now + in − out" on the
+Planning screen adds up to "ends" exactly. They can differ by a cent.
 
 **A missing directory is not an empty store.** The prototype read a missing
 file as "nothing stored yet". For a network share that is dangerous: an

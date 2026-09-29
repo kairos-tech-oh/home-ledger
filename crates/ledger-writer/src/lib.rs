@@ -9,6 +9,7 @@
 
 pub mod audit;
 pub mod clean;
+mod dashboard;
 mod holdings;
 pub mod import;
 pub mod reconcile;
@@ -191,6 +192,10 @@ pub enum Op {
         list: TypeList,
         name: String,
     },
+    /// Replace the dashboard layout whole.
+    DashboardSet {
+        dashboard: Value,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -247,6 +252,7 @@ impl Writer {
             }
             Op::TypeAdd { list, name } => self.type_add(ledger, *list, name)?,
             Op::TypeDelete { list, name } => self.type_delete(ledger, *list, name)?,
+            Op::DashboardSet { dashboard } => self.dashboard_set(ledger, dashboard)?,
         };
         Ok(entry)
     }

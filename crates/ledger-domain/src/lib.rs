@@ -2,6 +2,7 @@
 //! No I/O and no policy: the writer decides what may change, this says what a
 //! record is.
 
+pub mod dashboard;
 pub mod document;
 pub mod lineage;
 pub mod money;

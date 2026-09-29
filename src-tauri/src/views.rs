@@ -11,7 +11,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 use tauri::State;
 
-fn amount(value: Money) -> String {
+pub fn amount(value: Money) -> String {
     value.to_string()
 }
 

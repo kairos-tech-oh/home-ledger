@@ -286,6 +286,166 @@ export function localToday(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+export interface SpendingOptions {
+  period: string;
+  status: string;
+  from: string;
+  to: string;
+  stats: string[];
+  breakdowns: string[];
+  limit: number;
+}
+
+/** A dashboard widget as stored. */
+export interface Widget {
+  id: string;
+  kind: string;
+  title: string;
+  span: 1 | 2;
+  refs: string[];
+  options?: SpendingOptions;
+}
+
+export interface WidgetRow {
+  id: string;
+  name: string;
+  note: string;
+  kind: string;
+  available: string | null;
+  value: string;
+  target: string | null;
+  percent: number | null;
+  owes: boolean;
+}
+
+export interface WidgetStat {
+  key: string;
+  label: string;
+  money: boolean;
+  value: string;
+}
+
+export interface WidgetBreakdown {
+  key: string;
+  label: string;
+  frequency: boolean;
+  rows: { name: string; amount: string; count: number; share: number }[];
+  more: number;
+}
+
+export type Figures =
+  | { type: "networth"; net: string; assets: string; debts: string; change: string | null; history: number[] }
+  | { type: "rows"; rows: WidgetRow[]; total: string | null; missing: number }
+  | {
+      type: "retirement";
+      total: string;
+      roth: string;
+      traditional: string;
+      rothShare: number;
+      rothContributions: string;
+    }
+  | {
+      type: "reconciliation";
+      daysSince: number | null;
+      open: number;
+      openBalance: string;
+      year: number;
+      yearSpending: string;
+      yearBuckets: string;
+    }
+  | { type: "cashflow"; income: string; budgeted: string; left: string; percent: number | null }
+  | {
+      type: "credit";
+      available: string;
+      limit: string;
+      count: number;
+      recorded: number;
+      utilisation: number | null;
+    }
+  | { type: "holdings"; value: string; basis: string; gain: string; percent: number | null; count: number }
+  | {
+      type: "spending";
+      valid: boolean;
+      period: string;
+      count: number;
+      stats: WidgetStat[];
+      breakdowns: WidgetBreakdown[];
+    }
+  | { type: "unknown" };
+
+export interface WidgetView extends Widget {
+  label: string;
+  page: string;
+  figures: Figures;
+}
+
+export interface WidgetKind {
+  kind: string;
+  label: string;
+  picks: "" | "buckets" | "accounts" | "goals";
+  span: 1 | 2;
+  description: string;
+}
+
+export interface Choice {
+  id: string;
+  name: string;
+  value: string;
+  target: string | null;
+  percent: number | null;
+  kind: string;
+  owes: boolean;
+}
+
+export interface DashboardView {
+  widgets: WidgetView[];
+  isDefault: boolean;
+  kinds: WidgetKind[];
+  choices: { buckets: Choice[]; accounts: Choice[]; goals: Choice[] };
+  suggested: { buckets: string[]; accounts: string[]; goals: string[] };
+  defaultLayout: Widget[];
+  historyDays: number;
+}
+
+export interface SnapshotImport {
+  path: string;
+  points: number;
+  new: number;
+  first: string;
+  last: string;
+  overlap: number;
+}
+
+export const spendingStatOptions = [
+  { value: "total", label: "Itemized spending" },
+  { value: "count", label: "Charges" },
+  { value: "open", label: "Open charges" },
+  { value: "settled", label: "Settled charges" },
+  { value: "withdrawn", label: "Buckets withdrawn" },
+  { value: "fromBuckets", label: "Bucket-funded" },
+  { value: "everyday", label: "Everyday spending" },
+  { value: "average", label: "Average charge" },
+  { value: "unattributed", label: "Unattributed" },
+] as const;
+
+export const spendingBreakdownOptions = [
+  { value: "people", label: "Who spent the most" },
+  { value: "items", label: "Most frequent items" },
+  { value: "months", label: "Monthly spending" },
+  { value: "cards", label: "Spending by card" },
+  { value: "bucketSpending", label: "Charges assigned to buckets" },
+  { value: "withdrawals", label: "Actual bucket withdrawals" },
+] as const;
+
+export const spendingLimits = [3, 5, 10] as const;
+
+/** A widget id in the shape the writer accepts: 32 lowercase hex. */
+export function widgetId(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -346,7 +506,8 @@ export type Op =
   | { op: "reconcile-undo"; id: string }
   | { op: "template-activate"; id: string; keepCurrent: boolean }
   | { op: "type-add"; list: "budget" | "investment"; name: string }
-  | { op: "type-delete"; list: "budget" | "investment"; name: string };
+  | { op: "type-delete"; list: "budget" | "investment"; name: string }
+  | { op: "dashboard-set"; dashboard: { v: 1; widgets: Widget[] } };
 
 export type RecordKind =
   | "account"
@@ -471,6 +632,16 @@ export const ledger = {
       offsetMinutes: -new Date().getTimezoneOffset(),
     }),
   setFamilyMembers: (names: string[]) => invoke<string[]>("set_family_members", { names }),
+  dashboard: () =>
+    invoke<DashboardView>("dashboard", {
+      today: localToday(),
+      offsetMinutes: -new Date().getTimezoneOffset(),
+    }),
+  /** True when today's point was taken; false when there already was one. */
+  takeSnapshot: () => invoke<boolean>("take_snapshot", { today: localToday() }),
+  pluginSnapshotsPath: () => invoke<string | null>("plugin_snapshots_path"),
+  snapshotImportPreview: (path: string) => invoke<SnapshotImport>("snapshot_import_preview", { path }),
+  snapshotImport: (path: string) => invoke<number>("snapshot_import", { path }),
   detail: (ticker: string, range: string, force = false) =>
     invoke<Detail>("holding_detail", { ticker, range, force }),
 };

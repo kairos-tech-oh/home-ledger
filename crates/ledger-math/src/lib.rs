@@ -8,7 +8,9 @@
 mod goals;
 pub use goals::{GoalTotals, goal_progress, goal_saved, goal_totals, goals_in_order};
 pub mod calendar;
+pub mod dashboard;
 pub mod planning;
+pub mod snapshots;
 pub mod spending;
 
 use ledger_domain::records::{Account, Holding};
@@ -57,6 +59,17 @@ fn gross_debts(account: &Account) -> Decimal {
         };
     }
     lines
+}
+
+/// What one account comes to on the balance sheet: its cash and holdings,
+/// less what it owes. Negative for a liability.
+pub fn account_net(ledger: &Ledger, account: &Account) -> Money {
+    Money::new(account_gross(account, &ledger.investments) - gross_debts(account))
+}
+
+/// What one account owes, never negative.
+pub fn gross_owed(account: &Account) -> Money {
+    Money::new(gross_debts(account))
 }
 
 /// Assets less debts, across every account and holding.

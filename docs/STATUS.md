@@ -85,8 +85,9 @@ share would have proposed wiping the ledger.
 
 ### The screens
 
-Nine tabs: Accounts, Holdings, Retirement, Income, Budget, Savings, Reconcile,
-History, Storage. Each list-shaped tab toggles between cards and a table.
+Thirteen tabs: Dashboard, Accounts, Holdings, Retirement, Income, Budget,
+Savings, Reconcile, Spending, Goals, Planning, History, Storage. Each
+list-shaped tab toggles between cards and a table.
 Colour means something and only that: a name is white, green is money held,
 red is money owed, a pill's colour is its category.
 
@@ -105,6 +106,25 @@ red is money owed, a pill's colour is its category.
   exactly, delete an open one. Settle, undo and delete all ask first.
 - **Share prices** — a Finnhub key in the keychain, and a refresh that quotes
   every holding with a symbol.
+- **Dashboard** — the plugin's ten widget kinds, laid out in rows, stored in
+  the ledger so every machine shows the same one, with the plugin's default
+  when nothing is saved. Customize moves, resizes, edits and removes widgets.
+  Net worth's 30-day change comes from a daily snapshot, shared through the
+  source of truth like the history, and the plugin's `snapshots.json` can be
+  imported under Storage.
+- **Goals** — a target and the bucket behind it; progress follows the bucket.
+- **Planning** — every bucket carried forward to a date: budget in, planned
+  draws out, against its target.
+- **Spending** — what the card statements itemise for a period and status,
+  broken down by person, item, month, card and bucket, and what settling took
+  out of the buckets. Family names are kept per machine and offered on a
+  statement's "spent by".
+- **Budget templates** — save the budget, put a saved one back, on the Budget
+  tab.
+
+The figures behind Goals, Planning, Spending and the Dashboard agree with the
+plugin's own code on the real ledger (`tools/compare.sh`), except where
+docs/PORT.md says why not.
 
 ---
 
@@ -118,15 +138,18 @@ Holdings, retirement plans and statements are writable as of 2026-09-22 (every
 `check-helper.py` and `check-credit.py` case for them is a Rust test). Still
 missing from the writer:
 
-- **Goals and templates have no screens.** The writer can set, delete and
-  activate them (the Goals and Planning views in gap 2 will use it).
+- **Planned draws have no editor.** The Budget tab counts them and Planning
+  reads them, but adding or changing one still needs the plugin
+  (`ExpenseEditor.qml`).
 - **The new forms have not been clicked through.** They pass `svelte-check` and
   the launch-time top-up was exercised end to end against a throwaway local
   store, but no form has been submitted in the running app.
 
-### 2. Nothing else the prototypes can do
+### 2. The newest screens are unexercised
 
-Four views have no equivalent here: **Dashboard, Goals, Planning, Spending**.
+Dashboard, Goals, Planning, Spending and budget templates were added on
+2026-09-29. Their figures are checked against the plugin, but no widget has
+been customized, no goal saved, and no template put back in the running app.
 
 ### 3. Unproven in anger
 
