@@ -13,6 +13,7 @@
   import Planning from "./Planning.svelte";
   import Spending from "./Spending.svelte";
   import Dashboard from "./Dashboard.svelte";
+  import NavMenu from "./NavMenu.svelte";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
 
@@ -25,24 +26,47 @@
   let view = $state<LedgerView | null>(null);
   // Bumped on every reload, for screens that fetch figures of their own.
   let revision = $state(0);
-  // In the plugin's order: the landing page, what you have, what comes and
-  // goes, what you are aiming at, then the record and the plumbing.
-  const tabs = [
-    ["dashboard", "Dashboard"],
-    ["accounts", "Accounts"],
-    ["holdings", "Holdings"],
-    ["retirement", "Retirement"],
-    ["income", "Income"],
-    ["budget", "Budget"],
-    ["savings", "Savings"],
-    ["reconcile", "Reconcile"],
-    ["spending", "Spending"],
-    ["goals", "Goals"],
-    ["planning", "Planning"],
-    ["history", "History"],
-    ["storage", "Storage"],
+  // The landing page, what you have, what comes and goes, what you are aiming
+  // at, then the record and the plumbing.
+  const groups = [
+    { label: "Dashboard", pages: [["dashboard", "Dashboard"]] },
+    {
+      label: "Wealth",
+      pages: [
+        ["accounts", "Accounts"],
+        ["holdings", "Holdings"],
+        ["retirement", "Retirement"],
+        ["savings", "Savings"],
+      ],
+    },
+    {
+      label: "Cash flow",
+      pages: [
+        ["income", "Income"],
+        ["budget", "Budget"],
+        ["reconcile", "Reconcile"],
+        ["spending", "Spending"],
+      ],
+    },
+    {
+      label: "Plans",
+      pages: [
+        ["goals", "Goals"],
+        ["planning", "Planning"],
+      ],
+    },
+    {
+      label: "Ledger",
+      pages: [
+        ["history", "History"],
+        ["storage", "Storage"],
+      ],
+    },
   ] as const;
-  type Tab = (typeof tabs)[number][0];
+  type Tab = (typeof groups)[number]["pages"][number][0];
+  const tabs: (readonly [Tab, string])[] = groups.flatMap(
+    (g): readonly (readonly [Tab, string])[] => g.pages,
+  );
   let tab = $state<Tab>("dashboard");
 
   function open(page: string) {
@@ -173,11 +197,9 @@
 </header>
 
 {#if !firstRun}
-  <nav>
-    {#each tabs as [value, label] (value)}
-      <button class:on={tab === value} onclick={() => (tab = value)}>{label}</button>
-    {/each}
-  </nav>
+  <div class="nav-row">
+    <NavMenu {groups} current={tab} onchoose={(page) => (tab = page)} />
+  </div>
 {/if}
 
 <main class="page">
@@ -278,18 +300,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* Its own row, wrapping, so every tab stays one click away however narrow
-     the window. */
-  nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
+  .nav-row {
     padding: 0 1rem 0.5rem;
     border-bottom: 1px solid var(--hairline);
-  }
-  nav button.on {
-    background: var(--raised-strong);
-    border-color: var(--faint);
   }
   .sync {
     display: flex;
