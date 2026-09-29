@@ -1,0 +1,444 @@
+/* The plugin's look, as one shared layer rather than per-component styles.
+   Palette values are taken from its App.qml; the layout is taken from what it
+   actually renders: monospace, full width, dense rows, figures up front. */
+:root {
+  --ground: 5, 5, 5;
+  --surface-alpha: 0.94;
+
+  --ink: 237, 236, 232;
+  --text: rgb(var(--ink));
+  --dim: rgba(var(--ink), 0.55);
+  --faint: rgba(var(--ink), 0.28);
+  --hairline: rgba(var(--ink), 0.12);
+  --raised: rgba(var(--ink), 0.05);
+  --raised-strong: rgba(var(--ink), 0.09);
+
+  --accent: #7c9ef8;
+  --positive: #6ee7b7;
+  --negative: #f87171;
+  --warn: #fbbf24;
+
+  /* Pill colours, one per kind of thing, matching the plugin's badges. */
+  --pill-blue: #7c9ef8;
+  --pill-violet: #a78bfa;
+  --pill-green: #6ee7b7;
+  --pill-amber: #fbbf24;
+  --pill-red: #f87171;
+
+  color-scheme: dark;
+  /* Monospace throughout. It is most of why the plugin reads the way it
+     does: every column of figures lines up without a table. */
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace,
+    "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: rgba(var(--ground), var(--surface-alpha));
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ------------------------------------------------------------ controls */
+
+button {
+  font: inherit;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button:not(:disabled):hover {
+  background: var(--raised-strong);
+  border-color: var(--faint);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* An action that reads as text rather than a control, the way the plugin's
+   row actions do. */
+button.bare {
+  border-color: transparent;
+  padding: 0.15rem 0.4rem;
+  color: var(--dim);
+}
+
+button.bare:not(:disabled):hover {
+  color: var(--text);
+  background: var(--raised-strong);
+}
+
+button.bare.danger:not(:disabled):hover {
+  color: var(--negative);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  padding: 0.3rem 0.45rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: inherit;
+}
+
+input::placeholder {
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------- layout */
+
+/* Full width. The plugin fills its window and so should this. */
+.page {
+  padding: 0 1rem 2rem;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.section-head h2 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+/* --------------------------------------------------------- stat tiles */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.tile {
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--raised);
+}
+
+.tile-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.tile-figure {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0.1rem 0 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-note {
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+
+/* --------------------------------------------------------- dense rows */
+
+.rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.3rem;
+  border: 1px solid transparent;
+}
+
+.row:hover {
+  background: var(--raised);
+  border-color: var(--hairline);
+}
+
+.row-main {
+  min-width: 0;
+}
+
+/* White. Colour in this app means something — green is money held, red is
+   money owed, a pill's colour is its category — so a name never takes one. */
+.row-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* One line of everything secondary, separated by middots the way the plugin
+   does it, and truncated rather than wrapped so rows stay one height. */
+.row-meta {
+  font-size: 0.72rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.1rem;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------- cards */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.5rem;
+}
+
+.card {
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--raised);
+  display: grid;
+  /* A card never grows past its column; long content wraps or truncates. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 0.15rem;
+  align-content: start;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.card-where {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Wraps even when it is a button, which otherwise stays on one line. */
+.card-name {
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.card-figure {
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.card-note {
+  font-size: 0.68rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.1rem;
+  margin-top: 0.15rem;
+}
+
+/* A pair of buttons that pick between two ways of seeing the same list. */
+.toggle {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.toggle button.on {
+  background: var(--raised-strong);
+  border-color: var(--faint);
+}
+
+/* -------------------------------------------------------- group header */
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  margin-top: 0.9rem;
+  background: var(--raised);
+  border-radius: 0.3rem;
+}
+
+.group-total {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.group-count {
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+/* --------------------------------------------------------------- pills */
+
+.pill {
+  font-size: 0.68rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.pill.blue {
+  color: var(--pill-blue);
+}
+.pill.violet {
+  color: var(--pill-violet);
+}
+.pill.green {
+  color: var(--pill-green);
+}
+.pill.amber {
+  color: var(--pill-amber);
+}
+.pill.red {
+  color: var(--pill-red);
+}
+.pill.muted {
+  color: var(--dim);
+}
+
+/* --------------------------------------------------------- colour cues */
+
+.pos {
+  color: var(--positive);
+}
+.neg {
+  color: var(--negative);
+}
+.muted {
+  color: var(--dim);
+}
+.warn-text {
+  color: var(--warn);
+}
+
+/* --------------------------------------------------------------- forms */
+
+.panel {
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+  padding: 0.8rem;
+  margin: 0.6rem 0;
+  background: var(--raised);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.panel h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.field > span:first-child {
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.field.check {
+  grid-template-columns: auto 1fr;
+}
+
+.note {
+  font-size: 0.72rem;
+  color: var(--faint);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.error {
+  color: var(--negative);
+  font-size: 0.78rem;
+  margin: 0.3rem 0;
+}
+
+.ok {
+  color: var(--positive);
+  font-size: 0.78rem;
+  margin: 0.3rem 0;
+}
+
+.warn-box {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  margin: 0.3rem 0;
+}
+
+.empty {
+  color: var(--faint);
+  font-size: 0.8rem;
+  padding: 0.6rem;
+}

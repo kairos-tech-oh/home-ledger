@@ -1,0 +1,16 @@
+{
+  "name": "home-ledger",
+  "private": true,
+  "license": "Apache-2.0",
+  "version": "0.1.1",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "ui": "npm --prefix ui run dev",
+    "check": "npm --prefix ui run check && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

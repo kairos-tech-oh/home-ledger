@@ -1,0 +1,25 @@
+[package]
+name = "ledger-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ledger-domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["net", "io-util"] }
+tracing.workspace = true
+uuid.workspace = true
+# Hand-rolled SigV4 rather than the AWS SDK: the SDK is an enormous dependency
+# tree for two HTTP verbs, and this is proven against a real bucket already.
+hmac = "0.12"
+sha2 = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "json", "multipart"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = "3"

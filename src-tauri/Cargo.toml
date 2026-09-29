@@ -1,0 +1,38 @@
+[package]
+name = "home-ledger"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "A household balance sheet that keeps its own data."
+default-run = "home-ledger"
+
+[lib]
+name = "home_ledger_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+ledger-domain.workspace = true
+ledger-math.workspace = true
+ledger-store.workspace = true
+ledger-writer.workspace = true
+ledger-config.workspace = true
+
+tauri = { version = "2", features = [] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+rust_decimal.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+time = { version = "0.3", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
+
+[dev-dependencies]
+tempfile = "3"
+async-trait.workspace = true

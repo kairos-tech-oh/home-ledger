@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/ledger-domain",
+    "crates/ledger-math",
+    "crates/ledger-writer",
+    "crates/ledger-store",
+    "crates/ledger-config",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.90"
+license = "Apache-2.0"
+repository = "https://github.com/kairos-tech-oh/home-ledger"
+
+[workspace.dependencies]
+ledger-domain = { path = "crates/ledger-domain" }
+ledger-math = { path = "crates/ledger-math" }
+ledger-writer = { path = "crates/ledger-writer" }
+ledger-store = { path = "crates/ledger-store" }
+ledger-config = { path = "crates/ledger-config" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# Money is decimal, never binary floating point. See crates/ledger-domain/src/money.rs.
+# serde-float, not the default: a Decimal otherwise serialises as a quoted
+# string, which would rewrite every amount in the document as text.
+rust_decimal = { version = "1", default-features = false, features = ["serde-float", "std"] }
+rust_decimal_macros = "1"
+thiserror = "2"
+uuid = { version = "1", default-features = false, features = ["v4", "std"] }
+async-trait = "0.1"
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "fs", "time", "macros"] }
+tracing = "0.1"
+
+# A release build optimises for size and strips: the point of not being Electron.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
