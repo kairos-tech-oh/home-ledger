@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MemberPicker from "./MemberPicker.svelte";
   import {
     ledger,
     money,
@@ -170,10 +171,7 @@
     <div class="defaults">
       <label class="field">
         <span>Spent by</span>
-        <input bind:value={member} list="import-members" />
-        <datalist id="import-members">
-          {#each members as name (name)}<option value={name}></option>{/each}
-        </datalist>
+        <MemberPicker bind:value={member} {members} />
       </label>
       <label class="field">
         <span>Paid from</span>

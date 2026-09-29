@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import MemberPicker from "./MemberPicker.svelte";
   import {
     money,
     type AccountView,
@@ -119,15 +120,12 @@
           <option value={bucket.id}>{bucket.name} · {money(bucket.cash)}</option>
         {/each}
       </select>
-      <input bind:value={line.member} placeholder="spent by" list="family-members" />
+      <MemberPicker bind:value={line.member} {members} />
       <input type="date" bind:value={line.spentOn} />
       <button type="button" class="bare" onclick={() => lines.splice(i, 1)}>×</button>
     </div>
   {/each}
 
-  <datalist id="family-members">
-    {#each members as name (name)}<option value={name}></option>{/each}
-  </datalist>
 
   <label class="field check">
     <input type="checkbox" bind:checked={adjustAccounts} />
