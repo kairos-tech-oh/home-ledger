@@ -1,7 +1,15 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
   import TypesPanel from "./TypesPanel.svelte";
-  import { ledger, money, type AccountView, type BucketView, type BudgetView } from "./ledger";
+  import TemplatesPanel from "./TemplatesPanel.svelte";
+  import {
+    ledger,
+    money,
+    type AccountView,
+    type BucketView,
+    type BudgetView,
+    type TemplateView,
+  } from "./ledger";
   import type { Overview } from "./lib";
 
   let {
@@ -10,6 +18,7 @@
     buckets,
     budgetTypes,
     fixedTypes,
+    templates,
     overview,
     onchanged,
   }: {
@@ -18,6 +27,7 @@
     buckets: BucketView[];
     budgetTypes: string[];
     fixedTypes: string[];
+    templates: TemplateView[];
     overview: Overview | null;
     onchanged: () => void;
   } = $props();
@@ -29,6 +39,7 @@
   let confirmDelete = $state<BudgetView | null>(null);
   let view = $state<"cards" | "table">("table");
   let managingTypes = $state(false);
+  let managingTemplates = $state(false);
 
   let name = $state("");
   let kind = $state("");
@@ -178,6 +189,7 @@
       <button class:on={view === "table"} onclick={() => (view = "table")}>Table</button>
     </div>
     <button onclick={() => (managingTypes = !managingTypes)}>Types</button>
+    <button onclick={() => (managingTemplates = !managingTemplates)}>Templates</button>
     {#if !open}
       <button onclick={() => edit(null)} disabled={busy}>+ Line</button>
     {/if}
@@ -185,6 +197,15 @@
 </div>
 
 {#if error}<p class="error">{error}</p>{/if}
+{#if managingTemplates}
+  <TemplatesPanel
+    {templates}
+    {budget}
+    monthly={overview?.monthlyBudget ?? "0"}
+    {onchanged}
+    onclose={() => (managingTemplates = false)}
+  />
+{/if}
 {#if managingTypes}
   <TypesPanel
     list="budget"

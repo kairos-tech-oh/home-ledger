@@ -219,6 +219,7 @@
       buckets={view.buckets}
       budgetTypes={view.budgetTypes}
       fixedTypes={view.fixedTypes.budget}
+      templates={view.templates}
       {overview}
       onchanged={load}
     />

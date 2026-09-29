@@ -155,6 +155,27 @@ mod tests {
     }
 
     #[test]
+    fn a_template_saved_the_way_the_budget_screen_sends_it() {
+        // Amounts arrive as the strings the screen was given, nested in items.
+        let mut ledger = Ledger::default();
+        set(
+            &mut ledger,
+            Kind::Template,
+            json!({ "name": "Now", "items": [
+                { "name": "Rent", "type": "Living", "monthlyAmount": "2000.00", "bucketId": "" },
+                { "name": "Car", "type": "Savings", "monthlyAmount": "150.50", "bucketId": "" } ] }),
+        );
+        let items = &ledger.templates[0].items;
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            items[1].monthly_amount,
+            Money::new(rust_decimal::Decimal::new(15050, 2))
+        );
+        assert_eq!(items[1].kind, "Savings");
+        assert!(!ledger.templates[0].saved_at.is_empty());
+    }
+
+    #[test]
     fn a_template_drops_nameless_lines() {
         let mut ledger = Ledger::default();
         lean_month(&mut ledger);

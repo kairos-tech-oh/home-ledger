@@ -205,6 +205,16 @@ export interface PlanningView {
   change: string;
 }
 
+export interface TemplateView {
+  id: string;
+  name: string;
+  notes: string;
+  savedAt: string;
+  lines: number;
+  monthly: string;
+  againstNow: string;
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -216,6 +226,7 @@ export interface LedgerView {
   earners: EarnerView[];
   goals: GoalView[];
   goalTotals: GoalTotalsView;
+  templates: TemplateView[];
   budgetTypes: string[];
   investmentTypes: string[];
   fixedTypes: { budget: string[]; investment: string[] };

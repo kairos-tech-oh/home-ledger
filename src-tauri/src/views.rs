@@ -256,6 +256,21 @@ pub struct GoalTotalsView {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateView {
+    pub id: String,
+    pub name: String,
+    pub notes: String,
+    pub saved_at: String,
+    pub lines: usize,
+    /// What its lines come to in a month.
+    pub monthly: String,
+    /// Its monthly total less the live budget's: what putting it back would
+    /// change by.
+    pub against_now: String,
+}
+
+#[derive(Serialize)]
 pub struct FixedTypes {
     pub budget: &'static [&'static str],
     pub investment: &'static [&'static str],
@@ -275,6 +290,8 @@ pub struct LedgerView {
     /// Nearest to done first, goals without a target last.
     pub goals: Vec<GoalView>,
     pub goal_totals: GoalTotalsView,
+    /// Saved budgets, as stored: oldest first.
+    pub templates: Vec<TemplateView>,
     /// Every type the budget uses, in the order they are filed under.
     pub budget_types: Vec<String>,
     pub investment_types: Vec<String>,
@@ -306,6 +323,7 @@ pub async fn ledger(state: State<'_, AppState>) -> Answer<LedgerView> {
         earners: earners_of(&doc),
         goals: goals_of(&doc),
         goal_totals: goal_totals_of(&doc),
+        templates: templates_of(&doc),
         budget_types: doc.budget_types.clone(),
         investment_types: doc.investment_types.clone(),
         fixed_types: FixedTypes {
@@ -591,6 +609,25 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
                     .collect(),
                 lines_total: amount(lines_total),
                 unaccounted: amount(record.balance - lines_total),
+            }
+        })
+        .collect()
+}
+
+fn templates_of(doc: &Ledger) -> Vec<TemplateView> {
+    let live = ledger_math::monthly_budget(doc);
+    doc.templates
+        .iter()
+        .map(|template| {
+            let monthly: Money = template.items.iter().map(|i| i.monthly_amount).sum();
+            TemplateView {
+                id: template.id.clone(),
+                name: template.name.clone(),
+                notes: template.notes.clone(),
+                saved_at: template.saved_at.clone(),
+                lines: template.items.len(),
+                monthly: amount(monthly),
+                against_now: amount(monthly - live),
             }
         })
         .collect()
