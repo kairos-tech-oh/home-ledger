@@ -81,6 +81,14 @@ to four cents low, growing with the rate. Checked at 6%, 8% and 10% on the real
 ledger. This is the second place the two deliberately disagree, and `compare.sh`
 will keep showing it.
 
+**Planning counts in calendar days, not milliseconds.** The prototype compared
+a draw's midnight date against a "now" that carries the time of day, so a draw
+dated today dropped out of the window as soon as the day had begun. The port
+works in dates, both ends included, and a draw dated today counts. Every oracle
+case sits at midnight, where the two agree. Stepping a month from the 31st still
+runs over the way JavaScript's `Date` does (31 January plus a month is 3 March),
+so a recurring draw lands on the same days in both.
+
 **A missing directory is not an empty store.** The prototype read a missing
 file as "nothing stored yet". For a network share that is dangerous: an
 unmounted share looks identical to an empty one, and adopting "empty" proposes

@@ -7,6 +7,7 @@ mod commands;
 #[cfg(test)]
 mod history_sync_tests;
 mod market;
+mod planning;
 mod plugin_history;
 mod quotes;
 mod state;
@@ -57,6 +58,7 @@ pub fn run() {
             views::ledger,
             views::history,
             views::projection,
+            planning::planning,
             market::holding_detail,
             quotes::refresh_prices,
             quotes::save_api_key,

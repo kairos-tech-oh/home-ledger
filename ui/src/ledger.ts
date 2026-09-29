@@ -170,6 +170,41 @@ export interface GoalTotalsView {
   remaining: string;
 }
 
+export interface DrawView {
+  name: string;
+  amount: string;
+  occurrences: number;
+  impact: string;
+  schedule: string;
+}
+
+export interface BucketPlanView {
+  id: string;
+  name: string;
+  current: string;
+  projected: string;
+  change: string;
+  velocity: string | null;
+  contributions: string;
+  deductions: string;
+  target: string | null;
+  percent: number | null;
+  monthsToGoal: number | null;
+  draws: DrawView[];
+}
+
+export interface PlanningView {
+  from: string;
+  to: string;
+  months: number;
+  buckets: BucketPlanView[];
+  current: string;
+  contributions: string;
+  deductions: string;
+  projected: string;
+  change: string;
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -340,6 +375,8 @@ export const ledger = {
   /** Null when the edit was valid but had nothing to do. */
   apply: (op: Op) => invoke<Applied | null>("apply", { op }),
   projection: () => invoke<ProjectionView>("projection"),
+  /** Both dates as `yyyy-mm-dd`; `from` is today on this machine's calendar. */
+  planning: (from: string, to: string) => invoke<PlanningView>("planning", { from, to }),
   detail: (ticker: string, range: string, force = false) =>
     invoke<Detail>("holding_detail", { ticker, range, force }),
 };

@@ -7,6 +7,7 @@
 
 mod goals;
 pub use goals::{GoalTotals, goal_progress, goal_saved, goal_totals, goals_in_order};
+pub mod planning;
 
 use ledger_domain::records::{Account, Holding};
 use ledger_domain::{Ledger, Money};

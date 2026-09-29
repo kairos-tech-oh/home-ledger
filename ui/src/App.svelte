@@ -10,6 +10,7 @@
   import Retirement from "./Retirement.svelte";
   import Reconcile from "./Reconcile.svelte";
   import Goals from "./Goals.svelte";
+  import Planning from "./Planning.svelte";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
 
@@ -20,6 +21,8 @@
   let busy = $state(false);
   let setup = $state<Setup | null>(null);
   let view = $state<LedgerView | null>(null);
+  // Bumped on every reload, for screens that fetch figures of their own.
+  let revision = $state(0);
   let tab = $state<
     | "accounts"
     | "holdings"
@@ -29,6 +32,7 @@
     | "savings"
     | "reconcile"
     | "goals"
+    | "planning"
     | "history"
     | "storage"
   >("accounts");
@@ -54,6 +58,7 @@
         storage.setup(),
         ledgerApi.read(),
       ]);
+      revision += 1;
       if (setup && !setup.setupComplete) tab = "storage";
     } catch (e) {
       error = String(e);
@@ -128,6 +133,7 @@
     ["savings", "Savings"],
     ["reconcile", "Reconcile"],
     ["goals", "Goals"],
+    ["planning", "Planning"],
     ["history", "History"],
     ["storage", "Storage"],
   ] as const;
@@ -220,6 +226,8 @@
     <Buckets buckets={view.buckets} onchanged={load} />
   {:else if tab === "goals" && view}
     <Goals goals={view.goals} totals={view.goalTotals} buckets={view.buckets} onchanged={load} />
+  {:else if tab === "planning"}
+    <Planning {revision} />
   {:else if tab === "history"}
     <History />
   {/if}
