@@ -179,6 +179,66 @@ impl Writer {
         ))
     }
 
+    /// Adds charges read from a bank export to an open statement. The lines
+    /// are cleaned exactly as a hand-typed one is; the statement's balance and
+    /// everything else on it are left alone.
+    pub(crate) fn reconcile_import(
+        &self,
+        ledger: &mut Ledger,
+        id: &str,
+        supplied: &[Value],
+    ) -> Result<AuditEntry, WriteError> {
+        let wanted = valid_id(id);
+        let Some(i) = position(&ledger.reconciliations, &wanted) else {
+            return refuse("no such reconciliation");
+        };
+        if ledger.reconciliations[i].status == "settled" {
+            return refuse("a settled reconciliation is history; undo it to add to it");
+        }
+        let mut lines = Vec::with_capacity(supplied.len());
+        for raw in supplied {
+            let mut line: ledger_domain::records::ReconLine = from_json(raw)?;
+            // Always a new line: an import never edits one already there.
+            line.id = String::new();
+            if !line.bucket_id.is_empty() && ledger.bucket(&line.bucket_id).is_none() {
+                line.bucket_id.clear();
+            }
+            if let Some(line) = clean::recon_line(line) {
+                lines.push(line);
+            }
+        }
+        if lines.is_empty() {
+            return Err(WriteError::Unchanged("nothing to import".into()));
+        }
+        let record = &mut ledger.reconciliations[i];
+        let before = record.lines.len();
+        if before + lines.len() > caps::RECON_LINES {
+            return refuse(format!(
+                "a statement holds at most {} charges; this would make {}",
+                caps::RECON_LINES,
+                before + lines.len()
+            ));
+        }
+        let added: Money = lines.iter().map(|l| l.amount).sum();
+        let count = lines.len();
+        record.lines.extend(lines);
+        Ok(self.finish(
+            AuditEntry {
+                action: "Import".into(),
+                subject: "reconciliation".into(),
+                name: title(record),
+                amount: Some(added),
+                changes: vec![AuditChange {
+                    field: "charges".into(),
+                    from: before.to_string(),
+                    to: (before + count).to_string(),
+                }],
+                ..Default::default()
+            },
+            "reconcile-import",
+        ))
+    }
+
     pub(crate) fn reconcile_delete(
         &self,
         ledger: &mut Ledger,
@@ -816,5 +876,95 @@ mod tests {
             .map(|l| l.amount)
             .collect();
         assert_eq!(amounts, [m("42.5"), m("20")]);
+    }
+}
+
+#[cfg(test)]
+mod import_tests {
+    use crate::{Op, WriteError, Writer};
+    use ledger_domain::{Ledger, Money};
+    use serde_json::json;
+
+    fn apply(
+        ledger: &mut Ledger,
+        op: serde_json::Value,
+    ) -> Result<ledger_domain::records::AuditEntry, WriteError> {
+        let op: Op = serde_json::from_value(op).unwrap();
+        Writer::new("test").apply(ledger, &op)
+    }
+
+    fn statement(ledger: &mut Ledger) -> String {
+        apply(
+            ledger,
+            json!({ "op": "reconcile-set", "record": { "card": "Sapphire", "balance": 100,
+                "lines": [{ "label": "Kept", "amount": 10 }] } }),
+        )
+        .unwrap();
+        ledger.reconciliations[0].id.clone()
+    }
+
+    #[test]
+    fn imported_charges_are_added_after_the_ones_there() {
+        let mut ledger = Ledger::default();
+        let id = statement(&mut ledger);
+        let entry = apply(
+            &mut ledger,
+            json!({ "op": "reconcile-import", "id": id, "lines": [
+                { "label": "COSTCO WHSE #0632", "amount": "282.18", "spentOn": "2026-09-27",
+                  "member": "All", "notes": "Shopping" },
+                { "label": "Nothing", "amount": "0" },
+                { "id": "ffffffffffffffffffffffffffffffff", "label": "KROGER", "amount": 48.59,
+                  "spentOn": "09/26/2026", "bucketId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+            ]}),
+        )
+        .unwrap();
+        let lines = &ledger.reconciliations[0].lines;
+        assert_eq!(lines.len(), 3, "the zero line is dropped");
+        assert_eq!(lines[0].label, "Kept");
+        assert_eq!(lines[1].member, "All");
+        assert_eq!(lines[1].spent_on, "2026-09-27");
+        assert_eq!(lines[1].notes, "Shopping");
+        // A supplied id is not trusted, a bucket that does not exist is let go,
+        // and a date not in yyyy-mm-dd is not guessed at here.
+        assert_ne!(lines[2].id, "f".repeat(32));
+        assert!(lines[2].bucket_id.is_empty());
+        assert!(lines[2].spent_on.is_empty());
+        assert_eq!(entry.action, "Import");
+        assert_eq!(
+            entry.amount,
+            Some(Money::new(rust_decimal::Decimal::new(33077, 2)))
+        );
+        assert_eq!(
+            ledger.reconciliations[0].balance,
+            Money::from(100),
+            "the balance is untouched"
+        );
+    }
+
+    #[test]
+    fn a_settled_statement_takes_no_imports() {
+        let mut ledger = Ledger::default();
+        let id = statement(&mut ledger);
+        ledger.reconciliations[0].status = "settled".into();
+        assert!(
+            apply(
+                &mut ledger,
+                json!({ "op": "reconcile-import", "id": id,
+            "lines": [{ "label": "x", "amount": 1 }] })
+            )
+            .is_err()
+        );
+        assert_eq!(ledger.reconciliations[0].lines.len(), 1);
+    }
+
+    #[test]
+    fn nothing_worth_adding_changes_nothing() {
+        let mut ledger = Ledger::default();
+        let id = statement(&mut ledger);
+        let got = apply(
+            &mut ledger,
+            json!({ "op": "reconcile-import", "id": id, "lines": [] }),
+        );
+        assert!(matches!(got, Err(WriteError::Unchanged(_))));
     }
 }

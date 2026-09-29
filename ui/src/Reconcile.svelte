@@ -1,5 +1,6 @@
 <script lang="ts">
   import StatementForm from "./StatementForm.svelte";
+  import ImportPanel from "./ImportPanel.svelte";
   import {
     ledger,
     money,
@@ -26,6 +27,7 @@
   let openId = $state<string | null>(null);
   let adding = $state(false);
   let editing = $state<ReconciliationView | null>(null);
+  let importing = $state<ReconciliationView | null>(null);
   // Settle, undo and delete all ask first: the first two move real money.
   let confirming = $state<{
     record: ReconciliationView;
@@ -39,6 +41,7 @@
   function close() {
     adding = false;
     editing = null;
+    importing = null;
     confirming = null;
   }
 
@@ -134,6 +137,10 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 
+{#if importing}
+  <ImportPanel record={importing} {buckets} {members} {onchanged} onclose={close} />
+{/if}
+
 {#if adding}
   <StatementForm {accounts} {buckets} {members} {busy} onsave={(f) => save("", f)} oncancel={close} />
 {:else if editing}
@@ -213,6 +220,9 @@
             title={ready(record) ? "Settle" : "The charges must add up to the balance first"}
             >Settle</button
           >
+          <button class="bare" onclick={() => { close(); importing = record; }} disabled={busy}>
+            Import
+          </button>
           <button class="bare" onclick={() => { close(); editing = record; }} disabled={busy}>
             Edit
           </button>

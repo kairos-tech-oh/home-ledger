@@ -6,10 +6,11 @@ license.workspace = true
 rust-version.workspace = true
 
 [dev-dependencies]
-ledger-math.workspace = true
+rust_decimal_macros.workspace = true
 
 [dependencies]
 ledger-domain.workspace = true
+ledger-math.workspace = true
 ledger-store.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true

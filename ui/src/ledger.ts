@@ -446,6 +446,44 @@ export function widgetId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export interface BankMapping {
+  date: number | null;
+  description: number | null;
+  amount: number | null;
+  debit: number | null;
+  credit: number | null;
+  category: number | null;
+  kind: number | null;
+  chargesNegative: boolean;
+  dayFirst: boolean;
+}
+
+export interface ImportRow {
+  line: number;
+  date: string;
+  description: string;
+  category: string;
+  kind: string;
+  amount: string;
+  charge: boolean;
+  problem: string;
+  value: string;
+  duplicate: boolean;
+  afterStatement: boolean;
+  suggested: boolean;
+}
+
+export interface ImportPreview {
+  headers: string[];
+  mapping: BankMapping;
+  hadHeaders: boolean;
+  notes: string[];
+  rows: ImportRow[];
+  charges: number;
+  duplicates: number;
+  setAside: number;
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -504,6 +542,7 @@ export type Op =
   | { op: "reconcile-delete"; id: string }
   | { op: "reconcile-settle"; id: string }
   | { op: "reconcile-undo"; id: string }
+  | { op: "reconcile-import"; id: string; lines: Record<string, unknown>[] }
   | { op: "template-activate"; id: string; keepCurrent: boolean }
   | { op: "type-add"; list: "budget" | "investment"; name: string }
   | { op: "type-delete"; list: "budget" | "investment"; name: string }
@@ -631,6 +670,9 @@ export const ledger = {
       today: localToday(),
       offsetMinutes: -new Date().getTimezoneOffset(),
     }),
+  /** A bank export read against one statement; `mapping` overrides the guess. */
+  transactionsPreview: (id: string, text: string, mapping: BankMapping | null) =>
+    invoke<ImportPreview>("transactions_preview", { id, text, mapping }),
   setFamilyMembers: (names: string[]) => invoke<string[]>("set_family_members", { names }),
   dashboard: () =>
     invoke<DashboardView>("dashboard", {

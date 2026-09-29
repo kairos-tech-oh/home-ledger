@@ -8,6 +8,7 @@
 //! `tools/check-helper.py` there as the oracle. See `docs/PORT.md`.
 
 pub mod audit;
+pub mod bank_csv;
 pub mod clean;
 mod dashboard;
 mod holdings;
@@ -170,6 +171,11 @@ pub enum Op {
     ReconcileDelete {
         id: String,
     },
+    /// Append charges read from a bank export to an open statement.
+    ReconcileImport {
+        id: String,
+        lines: Vec<Value>,
+    },
     /// Pay the statement: draw from buckets and accounts, pay down the card.
     ReconcileSettle {
         id: String,
@@ -245,6 +251,7 @@ impl Writer {
             Op::RetirementAccrue { id } => self.accrue(ledger, id, &this_month())?,
             Op::ReconcileSet { id, record } => self.reconcile_set(ledger, id, record)?,
             Op::ReconcileDelete { id } => self.reconcile_delete(ledger, id)?,
+            Op::ReconcileImport { id, lines } => self.reconcile_import(ledger, id, lines)?,
             Op::ReconcileSettle { id } => self.settle(ledger, id)?,
             Op::ReconcileUndo { id } => self.undo(ledger, id)?,
             Op::TemplateActivate { id, keep_current } => {

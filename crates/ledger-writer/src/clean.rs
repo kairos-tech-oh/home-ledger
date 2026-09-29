@@ -318,7 +318,7 @@ pub fn average(basis: Option<Money>, quantity: Money) -> Money {
     }
 }
 
-fn recon_line(mut record: ReconLine) -> Option<ReconLine> {
+pub(crate) fn recon_line(mut record: ReconLine) -> Option<ReconLine> {
     record.amount = cents(record.amount);
     if record.amount <= Money::ZERO {
         return None;

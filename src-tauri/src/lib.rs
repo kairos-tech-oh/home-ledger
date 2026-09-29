@@ -15,6 +15,7 @@ mod snapshots;
 mod spending;
 mod state;
 mod storage;
+mod transactions;
 mod updates;
 mod views;
 
@@ -75,6 +76,7 @@ pub fn run() {
             updates::update_check,
             updates::update_install,
             updates::app_version,
+            transactions::transactions_preview,
             market::holding_detail,
             quotes::refresh_prices,
             quotes::save_api_key,

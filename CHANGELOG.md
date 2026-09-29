@@ -10,6 +10,12 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Import charges into an open statement from a bank or card CSV export. Columns
+  and the sign of a purchase are worked out from the file and can be corrected;
+  payments, refunds and charges already on the statement are left out; imported
+  charges are attributed to All.
+
 ## [0.2.0] - 2026-09-29
 
 ### Added
