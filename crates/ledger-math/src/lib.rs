@@ -5,6 +5,9 @@
 //! `tools/check-math.mjs` there is the oracle each ported function is
 //! checked against. See `docs/PORT.md`.
 
+mod goals;
+pub use goals::{GoalTotals, goal_progress, goal_saved, goal_totals, goals_in_order};
+
 use ledger_domain::records::{Account, Holding};
 use ledger_domain::{Ledger, Money};
 use rust_decimal::Decimal;

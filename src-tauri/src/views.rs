@@ -227,6 +227,35 @@ pub struct ReconciliationView {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalView {
+    pub id: String,
+    pub name: String,
+    pub notes: String,
+    pub bucket_id: String,
+    /// Empty when the goal is linked to nothing, or to a bucket since deleted.
+    pub bucket_name: String,
+    pub target: Option<String>,
+    /// What the bucket behind it holds.
+    pub saved: String,
+    /// 0..=100, or None when there is no target.
+    pub progress: Option<f64>,
+    /// Target less saved, never below zero. None without a target.
+    pub remaining: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalTotalsView {
+    pub saved: String,
+    pub target: String,
+    pub with_target: usize,
+    pub percent: Option<f64>,
+    /// Still to find across the goals with a target.
+    pub remaining: String,
+}
+
+#[derive(Serialize)]
 pub struct FixedTypes {
     pub budget: &'static [&'static str],
     pub investment: &'static [&'static str],
@@ -243,6 +272,9 @@ pub struct LedgerView {
     pub retirement: Vec<RetirementView>,
     pub reconciliations: Vec<ReconciliationView>,
     pub earners: Vec<EarnerView>,
+    /// Nearest to done first, goals without a target last.
+    pub goals: Vec<GoalView>,
+    pub goal_totals: GoalTotalsView,
     /// Every type the budget uses, in the order they are filed under.
     pub budget_types: Vec<String>,
     pub investment_types: Vec<String>,
@@ -272,6 +304,8 @@ pub async fn ledger(state: State<'_, AppState>) -> Answer<LedgerView> {
         retirement: retirement_of(&doc),
         reconciliations: reconciliations_of(&doc),
         earners: earners_of(&doc),
+        goals: goals_of(&doc),
+        goal_totals: goal_totals_of(&doc),
         budget_types: doc.budget_types.clone(),
         investment_types: doc.investment_types.clone(),
         fixed_types: FixedTypes {
@@ -560,6 +594,43 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
             }
         })
         .collect()
+}
+
+fn goals_of(doc: &Ledger) -> Vec<GoalView> {
+    ledger_math::goals_in_order(doc)
+        .into_iter()
+        .map(|goal| {
+            let saved = ledger_math::goal_saved(doc, goal);
+            let target = goal
+                .target_amount
+                .filter(|t| !t.is_zero() && !t.is_negative());
+            GoalView {
+                id: goal.id.clone(),
+                name: goal.name.clone(),
+                notes: goal.notes.clone(),
+                bucket_id: goal.bucket_id.clone(),
+                bucket_name: doc
+                    .bucket(&goal.bucket_id)
+                    .map(|b| b.name.clone())
+                    .unwrap_or_default(),
+                target: maybe(goal.target_amount),
+                saved: amount(saved),
+                progress: ledger_math::goal_progress(doc, goal),
+                remaining: target.map(|t| amount((t - saved).floor_at_zero())),
+            }
+        })
+        .collect()
+}
+
+fn goal_totals_of(doc: &Ledger) -> GoalTotalsView {
+    let totals = ledger_math::goal_totals(doc);
+    GoalTotalsView {
+        saved: amount(totals.saved),
+        target: amount(totals.target),
+        with_target: totals.with_target,
+        percent: totals.percent,
+        remaining: amount((totals.target - totals.saved).floor_at_zero()),
+    }
 }
 
 fn name_of_account(doc: &Ledger, id: &str) -> String {

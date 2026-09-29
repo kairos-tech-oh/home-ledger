@@ -150,6 +150,26 @@ export interface EarnerView {
   streams: number;
 }
 
+export interface GoalView {
+  id: string;
+  name: string;
+  notes: string;
+  bucketId: string;
+  bucketName: string;
+  target: string | null;
+  saved: string;
+  progress: number | null;
+  remaining: string | null;
+}
+
+export interface GoalTotalsView {
+  saved: string;
+  target: string;
+  withTarget: number;
+  percent: number | null;
+  remaining: string;
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -159,6 +179,8 @@ export interface LedgerView {
   retirement: RetirementView[];
   reconciliations: ReconciliationView[];
   earners: EarnerView[];
+  goals: GoalView[];
+  goalTotals: GoalTotalsView;
   budgetTypes: string[];
   investmentTypes: string[];
   fixedTypes: { budget: string[]; investment: string[] };

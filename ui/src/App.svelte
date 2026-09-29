@@ -9,6 +9,7 @@
   import Holdings from "./Holdings.svelte";
   import Retirement from "./Retirement.svelte";
   import Reconcile from "./Reconcile.svelte";
+  import Goals from "./Goals.svelte";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
 
@@ -27,6 +28,7 @@
     | "budget"
     | "savings"
     | "reconcile"
+    | "goals"
     | "history"
     | "storage"
   >("accounts");
@@ -125,6 +127,7 @@
     ["budget", "Budget"],
     ["savings", "Savings"],
     ["reconcile", "Reconcile"],
+    ["goals", "Goals"],
     ["history", "History"],
     ["storage", "Storage"],
   ] as const;
@@ -215,6 +218,8 @@
     />
   {:else if tab === "savings" && view}
     <Buckets buckets={view.buckets} onchanged={load} />
+  {:else if tab === "goals" && view}
+    <Goals goals={view.goals} totals={view.goalTotals} buckets={view.buckets} onchanged={load} />
   {:else if tab === "history"}
     <History />
   {/if}
