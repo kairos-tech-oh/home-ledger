@@ -156,6 +156,12 @@ pub struct Config {
     /// machine, so it lives here rather than in the shared ledger.
     #[serde(default = "default_opacity")]
     pub opacity: f64,
+    /// Names offered when a charge is put against a family member. Kept per
+    /// machine, as the plugin keeps them, alongside the names already in use.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub family_members: Vec<String>,
+    #[serde(default)]
+    pub family_members_seeded: bool,
     /// Anything a newer build added, kept so an older one cannot delete it.
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
@@ -185,6 +191,8 @@ impl Default for Config {
             retirement_target_year_seeded: false,
             setup_complete: false,
             opacity: default_opacity(),
+            family_members: Vec::new(),
+            family_members_seeded: false,
             unknown: BTreeMap::new(),
         }
     }

@@ -11,6 +11,7 @@
     existing = null,
     accounts,
     buckets,
+    members = [],
     onsave,
     oncancel,
     busy = false,
@@ -18,6 +19,8 @@
     existing?: ReconciliationView | null;
     accounts: AccountView[];
     buckets: BucketView[];
+    /** Family names to suggest for who spent it. */
+    members?: string[];
     onsave: (fields: Record<string, unknown>) => void;
     oncancel: () => void;
     busy?: boolean;
@@ -116,11 +119,15 @@
           <option value={bucket.id}>{bucket.name} · {money(bucket.cash)}</option>
         {/each}
       </select>
-      <input bind:value={line.member} placeholder="spent by" />
+      <input bind:value={line.member} placeholder="spent by" list="family-members" />
       <input type="date" bind:value={line.spentOn} />
       <button type="button" class="bare" onclick={() => lines.splice(i, 1)}>×</button>
     </div>
   {/each}
+
+  <datalist id="family-members">
+    {#each members as name (name)}<option value={name}></option>{/each}
+  </datalist>
 
   <label class="field check">
     <input type="checkbox" bind:checked={adjustAccounts} />

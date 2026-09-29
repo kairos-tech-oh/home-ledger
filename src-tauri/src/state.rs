@@ -74,6 +74,12 @@ impl AppState {
             places.save_config(&config)?;
         }
 
+        if !config.family_members_seeded {
+            config.family_members = ledger_config::plugin_family_members();
+            config.family_members_seeded = true;
+            places.save_config(&config)?;
+        }
+
         if !config.retirement_target_year_seeded {
             let this_year = crate::clock::year_and_month().0;
             config.retirement_target_year = target_year(plugin_year(), this_year);
@@ -118,6 +124,18 @@ impl AppState {
         let mut config = self.config().await;
         config.retirement_target_year = year;
         self.reconfigure(config).await
+    }
+
+    pub async fn family_members(&self) -> Vec<String> {
+        self.live.read().await.config.family_members.clone()
+    }
+
+    pub async fn set_family_members(&self, names: &[String]) -> Result<Vec<String>, SetupError> {
+        let mut config = self.config().await;
+        config.family_members = ledger_config::clean_family_members(names);
+        let kept = config.family_members.clone();
+        self.reconfigure(config).await?;
+        Ok(kept)
     }
 
     pub async fn config(&self) -> Config {

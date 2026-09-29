@@ -290,6 +290,9 @@ pub struct LedgerView {
     /// Nearest to done first, goals without a target last.
     pub goals: Vec<GoalView>,
     pub goal_totals: GoalTotalsView,
+    /// Family names to offer on a charge: this machine's list, income owners
+    /// and names already used.
+    pub members: Vec<String>,
     /// Saved budgets, as stored: oldest first.
     pub templates: Vec<TemplateView>,
     /// Every type the budget uses, in the order they are filed under.
@@ -324,6 +327,7 @@ pub async fn ledger(state: State<'_, AppState>) -> Answer<LedgerView> {
         goals: goals_of(&doc),
         goal_totals: goal_totals_of(&doc),
         templates: templates_of(&doc),
+        members: ledger_math::spending::members(&doc, &state.family_members().await),
         budget_types: doc.budget_types.clone(),
         investment_types: doc.investment_types.clone(),
         fixed_types: FixedTypes {

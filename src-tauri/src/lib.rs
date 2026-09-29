@@ -10,6 +10,7 @@ mod market;
 mod planning;
 mod plugin_history;
 mod quotes;
+mod spending;
 mod state;
 mod storage;
 mod views;
@@ -59,6 +60,8 @@ pub fn run() {
             views::history,
             views::projection,
             planning::planning,
+            spending::spending,
+            spending::set_family_members,
             market::holding_detail,
             quotes::refresh_prices,
             quotes::save_api_key,

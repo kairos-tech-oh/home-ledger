@@ -11,97 +11,11 @@
 //! midnight — which is where every oracle case sits — the two agree.
 
 use crate::bucket_worth;
+pub use crate::calendar::Day;
 use ledger_domain::records::PlannedExpense;
 use ledger_domain::{Ledger, Money};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
-
-/// A calendar date. Only what planning needs: parse, compare, step.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Day(i64);
-
-impl Day {
-    /// `yyyy-mm-dd`, and only a date that exists: `2026-02-30` is refused.
-    pub fn parse(text: &str) -> Option<Day> {
-        let bytes = text.as_bytes();
-        if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
-            return None;
-        }
-        let y: i64 = text[0..4].parse().ok()?;
-        let m: i64 = text[5..7].parse().ok()?;
-        let d: i64 = text[8..10].parse().ok()?;
-        if !(1..=12).contains(&m) || d < 1 || d > days_in_month(y, m) {
-            return None;
-        }
-        Some(Day(days_from_civil(y, m, d)))
-    }
-
-    pub fn from_ymd(y: i64, m: i64, d: i64) -> Day {
-        // Normalises the month first, then lets the day run over, the way
-        // JavaScript's Date does: 31 January plus a month is 3 March.
-        let (y, m) = (y + (m - 1).div_euclid(12), (m - 1).rem_euclid(12) + 1);
-        Day(days_from_civil(y, m, 1) + d - 1)
-    }
-
-    pub fn ymd(self) -> (i64, i64, i64) {
-        civil_from_days(self.0)
-    }
-
-    pub fn iso(self) -> String {
-        let (y, m, d) = self.ymd();
-        format!("{y:04}-{m:02}-{d:02}")
-    }
-
-    pub fn days_until(self, later: Day) -> i64 {
-        later.0 - self.0
-    }
-
-    fn plus_days(self, n: i64) -> Day {
-        Day(self.0 + n)
-    }
-
-    fn plus_months(self, n: i64) -> Day {
-        let (y, m, d) = self.ymd();
-        Day::from_ymd(y, m + n, d)
-    }
-}
-
-fn is_leap(y: i64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
-}
-
-fn days_in_month(y: i64, m: i64) -> i64 {
-    match m {
-        2 if is_leap(y) => 29,
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
-    }
-}
-
-// Howard Hinnant's civil-from-days and its inverse. Day zero is 1970-01-01.
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let mp = (m + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146_097 + doe - 719_468
-}
-
-fn civil_from_days(z: i64) -> (i64, i64, i64) {
-    let z = z + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
-    (y, m, d)
-}
 
 /// Months between two dates, fractional, on the 30.4375-day month the web app
 /// projects with. A 365-day year is 11.99 months, not 12.

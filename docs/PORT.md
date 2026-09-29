@@ -11,8 +11,8 @@ checked against.
 | Source | Lines | Lands in | Done |
 |---|---:|---|---|
 | `helper/ledger.py` | 2,931 | `ledger-writer` | every op except `dashboard-set`, `prefs` and the snapshot history |
-| `core/Model.js` | 2,188 | `ledger-math` | balance sheet, monthly totals, earners, splits, buckets, planned draws |
-| `core/Spending.js` | 194 | `ledger-math` | no |
+| `core/Model.js` | 2,188 | `ledger-math` | balance sheet, monthly totals, earners, splits, buckets, planned draws, goals, planning |
+| `core/Spending.js` | 194 | `ledger-math` | `range`, `members`, `analyse` |
 | `core/Sanitise.js` | 53 | `ledger-domain` | yes |
 | record schemas | — | `ledger-domain` | yes |
 

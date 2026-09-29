@@ -235,6 +235,50 @@ pub fn plugin_target_year() -> Option<i32> {
     (year.is_finite() && year > 0.0).then_some(year as i32)
 }
 
+/// The family names the plugin kept in its own preferences, if it ran here.
+pub fn plugin_family_members() -> Vec<String> {
+    let Some(path) = plugin_file("prefs.json") else {
+        return Vec::new();
+    };
+    let Some(prefs) = std::fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+    else {
+        return Vec::new();
+    };
+    let names: Vec<String> = prefs
+        .get("familyMembers")
+        .and_then(serde_json::Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    clean_family_members(&names)
+}
+
+/// At most this many names, as the plugin allows.
+pub const FAMILY_MEMBERS_MAX: usize = 50;
+/// The ledger's own limit on a name.
+const NAME_MAX: usize = 120;
+
+/// Trimmed, one of each ignoring case, the first spelling kept, in the order
+/// given. Blank names are dropped.
+pub fn clean_family_members(names: &[String]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    names
+        .iter()
+        .map(|n| {
+            let one_line: String = n.chars().filter(|c| !c.is_control()).collect();
+            let name = one_line.split_whitespace().collect::<Vec<_>>().join(" ");
+            name.chars().take(NAME_MAX).collect::<String>()
+        })
+        .filter(|n| !n.is_empty() && seen.insert(n.to_lowercase()))
+        .take(FAMILY_MEMBERS_MAX)
+        .collect()
+}
+
 pub fn starting_config(places: &Places, device: &str) -> Config {
     Config {
         stores: vec![StoreConfig {
@@ -255,6 +299,17 @@ pub fn starting_config(places: &Places, device: &str) -> Config {
 mod tests {
     use super::*;
     use ledger_store::{Cas, PendingOp, Relation, StoreKind};
+
+    #[test]
+    fn family_names_are_one_of_each_in_the_order_given() {
+        // check-spending.py: ["Chris", "Pat", "Chris", "", 1] keeps Chris and Pat.
+        let names: Vec<String> = ["Chris", " Pat ", "chris", "", "  "]
+            .map(String::from)
+            .to_vec();
+        assert_eq!(clean_family_members(&names), ["Chris", "Pat"]);
+        let many: Vec<String> = (0..80).map(|i| format!("Name {i}")).collect();
+        assert_eq!(clean_family_members(&many).len(), FAMILY_MEMBERS_MAX);
+    }
 
     struct NoDocument;
     impl Document for NoDocument {

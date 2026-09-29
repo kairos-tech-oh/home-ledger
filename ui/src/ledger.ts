@@ -215,6 +215,77 @@ export interface TemplateView {
   againstNow: string;
 }
 
+export interface GroupView {
+  key: string;
+  name: string;
+  amount: string;
+  count: number;
+  share: number;
+}
+
+export interface ChargeView {
+  date: string;
+  inferred: boolean;
+  name: string;
+  member: string;
+  bucket: string;
+  card: string;
+  status: "open" | "settled";
+  amount: string;
+  reconciliationId: string;
+}
+
+export interface SpendingView {
+  valid: boolean;
+  start: string;
+  end: string;
+  total: string;
+  count: number;
+  open: string;
+  settled: string;
+  fromBuckets: string;
+  everyday: string;
+  withdrawn: string;
+  unattributed: string;
+  average: string;
+  undated: number;
+  inferredDates: number;
+  unitemized: string;
+  missingSettlementHistory: number;
+  undatedWithdrawals: number;
+  people: GroupView[];
+  items: GroupView[];
+  months: GroupView[];
+  cards: GroupView[];
+  bucketSpending: GroupView[];
+  withdrawals: GroupView[];
+  transactions: ChargeView[];
+  members: string[];
+  familyMembers: string[];
+}
+
+export const spendingPeriods = [
+  { value: "1m", label: "1 month" },
+  { value: "3m", label: "3 months" },
+  { value: "6m", label: "6 months" },
+  { value: "1y", label: "1 year" },
+  { value: "all", label: "All time" },
+  { value: "custom", label: "Custom range" },
+] as const;
+
+export const spendingStatuses = [
+  { value: "all", label: "Open and settled" },
+  { value: "settled", label: "Settled only" },
+  { value: "open", label: "Open only" },
+] as const;
+
+/** Today on this machine's calendar, as `yyyy-mm-dd`. */
+export function localToday(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -227,6 +298,7 @@ export interface LedgerView {
   goals: GoalView[];
   goalTotals: GoalTotalsView;
   templates: TemplateView[];
+  members: string[];
   budgetTypes: string[];
   investmentTypes: string[];
   fixedTypes: { budget: string[]; investment: string[] };
@@ -388,6 +460,17 @@ export const ledger = {
   projection: () => invoke<ProjectionView>("projection"),
   /** Both dates as `yyyy-mm-dd`; `from` is today on this machine's calendar. */
   planning: (from: string, to: string) => invoke<PlanningView>("planning", { from, to }),
+  /** Periods end today on this machine, and settlements land on its days. */
+  spending: (period: string, from: string, to: string, status: string) =>
+    invoke<SpendingView>("spending", {
+      period,
+      from,
+      to,
+      status,
+      today: localToday(),
+      offsetMinutes: -new Date().getTimezoneOffset(),
+    }),
+  setFamilyMembers: (names: string[]) => invoke<string[]>("set_family_members", { names }),
   detail: (ticker: string, range: string, force = false) =>
     invoke<Detail>("holding_detail", { ticker, range, force }),
 };

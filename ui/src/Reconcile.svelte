@@ -13,11 +13,13 @@
     reconciliations,
     accounts,
     buckets,
+    members,
     onchanged,
   }: {
     reconciliations: ReconciliationView[];
     accounts: AccountView[];
     buckets: BucketView[];
+    members: string[];
     onchanged: () => void;
   } = $props();
 
@@ -133,12 +135,13 @@
 {#if error}<p class="error">{error}</p>{/if}
 
 {#if adding}
-  <StatementForm {accounts} {buckets} {busy} onsave={(f) => save("", f)} oncancel={close} />
+  <StatementForm {accounts} {buckets} {members} {busy} onsave={(f) => save("", f)} oncancel={close} />
 {:else if editing}
   <StatementForm
     existing={editing}
     {accounts}
     {buckets}
+    {members}
     {busy}
     onsave={(f) => save(editing!.id, f)}
     oncancel={close}
