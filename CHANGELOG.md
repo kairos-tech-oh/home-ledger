@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-29
+
 ### Added
 - Licensed under the Apache License 2.0.
 - The savings page lists buckets largest first, in both views and in the
