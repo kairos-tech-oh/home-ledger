@@ -36,6 +36,21 @@ jobs:
 
   bundle:
     needs: check
+    # Signing material is only offered to builds of this repository's own
+    # branches and tags; a pull request from a fork gets none and builds
+    # unsigned, which ci-config.mjs allows for.
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # Off until a certificate exists: set the repository variable
+      # WINDOWS_SIGNING to "trusted-signing". See docs/RELEASING.md.
+      WINDOWS_SIGNING: ${{ vars.WINDOWS_SIGNING }}
+      AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+      AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+      AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,13 +85,20 @@ jobs:
       - run: npm ci
       - run: npm --prefix ui ci
 
+      - name: Windows signing tool
+        if: matrix.os == 'windows-latest' && env.WINDOWS_SIGNING == 'trusted-signing'
+        run: cargo install trusted-signing-cli --locked
+
+      - name: Release configuration
+        run: node tools/release/ci-config.mjs ci.conf.json
+
       - name: Bundle installers (Windows)
         if: matrix.os == 'windows-latest'
-        run: npm run build -- --bundles nsis,msi
+        run: npm run build -- --bundles nsis,msi --config ci.conf.json
 
       - name: Bundle installers (Linux)
         if: matrix.os == 'ubuntu-22.04'
-        run: npm run build -- --bundles deb,rpm
+        run: npm run build -- --bundles deb,rpm --config ci.conf.json
 
       # AppImage shells out to linuxdeploy, which needs FUSE and network at
       # bundle time. It is the portable Linux artifact, so it is worth having,
@@ -84,7 +106,7 @@ jobs:
       - name: Bundle AppImage (best effort)
         if: matrix.os == 'ubuntu-22.04'
         continue-on-error: true
-        run: npm run build -- --bundles appimage
+        run: npm run build -- --bundles appimage --config ci.conf.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -93,8 +115,11 @@ jobs:
           if-no-files-found: error
           path: |
             target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.exe.sig
             target/release/bundle/msi/*.msi
+            target/release/bundle/msi/*.msi.sig
             target/release/bundle/appimage/*.AppImage
+            target/release/bundle/appimage/*.AppImage.sig
             target/release/bundle/deb/*.deb
             target/release/bundle/rpm/*.rpm
 
@@ -106,9 +131,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      # What installed copies read to find this release. Fails the release when
+      # the installers were not signed with the update key.
+      - name: Update manifest
+        run: node tools/release/latest-json.mjs artifacts "${{ github.ref_name }}" "${{ github.repository }}" artifacts/latest.json
       - uses: softprops/action-gh-release@v2
         with:
           draft: true

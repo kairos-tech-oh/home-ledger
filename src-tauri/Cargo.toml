@@ -22,6 +22,7 @@ ledger-writer.workspace = true
 ledger-config.workspace = true
 
 tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

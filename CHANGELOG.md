@@ -23,6 +23,25 @@ described here but have no tags of their own.
 - A new application icon.
 - `CONTRIBUTING.md`, `SECURITY.md`, this changelog, and `tools/kb-check.sh`
   to run every kb claim.
+- A Dashboard, and the app opens on it: net worth with its 30-day change,
+  chosen buckets, accounts and goals, retirement, reconciliation, cash flow,
+  available credit, holdings and spending, laid out and customized the way the
+  plugin does it and stored in the ledger.
+- A daily net worth snapshot, shared between machines, and an import for the
+  plugin's `snapshots.json` under Storage.
+- Goals: a target and the bucket behind it.
+- Planning: every bucket carried forward to a chosen date.
+- Spending: what the card statements itemise, by person, item, month, card
+  and bucket, and what settling took out of the buckets. Family names are
+  offered on a statement's "spent by".
+- Budget templates on the Budget tab.
+- Updates: the app checks GitHub for a newer release on launch, and under
+  Storage → About, and installs it after checking its signature.
+
+### Changed
+- The tabs are grouped under Dashboard, Wealth, Cash flow, Plans and Ledger,
+  each opening on hover or click.
+- Dropdowns are drawn in the app's own dark colours instead of white.
 
 ### Changed
 - The savings and accounts pages open in the card view.

@@ -14,6 +14,7 @@
   import Spending from "./Spending.svelte";
   import Dashboard from "./Dashboard.svelte";
   import NavMenu from "./NavMenu.svelte";
+  import UpdateBanner from "./UpdateBanner.svelte";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
 
@@ -203,6 +204,7 @@
 {/if}
 
 <main class="page">
+  <UpdateBanner />
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if overview?.stale}

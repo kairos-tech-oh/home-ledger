@@ -15,6 +15,7 @@ mod snapshots;
 mod spending;
 mod state;
 mod storage;
+mod updates;
 mod views;
 
 pub use state::AppState;
@@ -35,6 +36,8 @@ pub fn run() {
     use tauri::Manager;
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::Pending::default())
         .setup(|app| {
             let state = AppState::bootstrap(app.handle())?;
             app.manage(state);
@@ -69,6 +72,9 @@ pub fn run() {
             snapshots::plugin_snapshots_path,
             snapshots::snapshot_import_preview,
             snapshots::snapshot_import,
+            updates::update_check,
+            updates::update_install,
+            updates::app_version,
             market::holding_detail,
             quotes::refresh_prices,
             quotes::save_api_key,

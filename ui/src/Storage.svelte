@@ -1,6 +1,7 @@
 <script lang="ts">
   import PriceKey from "./PriceKey.svelte";
   import SnapshotImport from "./SnapshotImport.svelte";
+  import About from "./About.svelte";
   import StoreForm from "./StoreForm.svelte";
   import { describe, kinds, storage, type Setup, type StoreConfig } from "./storage";
   import type { StoreStatus } from "./lib";
@@ -300,6 +301,7 @@
   {#if !firstRun}
     <PriceKey />
     <SnapshotImport />
+    <About />
   {/if}
 
   {#if firstRun}
