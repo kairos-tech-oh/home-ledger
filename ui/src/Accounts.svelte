@@ -28,6 +28,11 @@
     })),
   );
 
+  /// A home or a car: what it is worth, not cash in it.
+  function isAsset(kind: string): boolean {
+    return kind === "property" || kind === "vehicle";
+  }
+
   /// The plugin colours a badge by what kind of thing the account is.
   function pillColour(kind: string): string {
     if (kind.startsWith("retirement")) return "violet";
@@ -110,6 +115,7 @@
 
 {#if adding}
   <AccountForm
+    {accounts}
     onsave={(f) => run(() => ledger.apply({ op: "set", kind: "account", id: "", record: f }))}
     oncancel={() => (adding = false)}
     {busy}
@@ -117,6 +123,7 @@
 {:else if editing}
   <AccountForm
     existing={editing}
+    {accounts}
     onsave={(f) =>
       run(() => ledger.apply({ op: "set", kind: "account", id: editing!.id, record: f }))}
     oncancel={() => (editing = null)}
@@ -164,8 +171,13 @@
             {money(account.net)}
           </div>
           <div class="card-note">
-            {account.liability ? "owed" : "cash"}
+            {account.liability ? "owed" : isAsset(account.kind) ? "value" : "cash"}
             {money(account.total)}
+            {#if account.equity !== null}
+              · {money(account.owedAgainst)} owed on {account.loanName} ·
+              <span class:neg={account.equity.startsWith("-")}>{money(account.equity)} equity</span>
+            {/if}
+            {#if account.secures} · secured against {account.secures}{/if}
             {#if account.holdingCount > 0}
               · {account.holdingCount} holding{account.holdingCount === 1 ? "" : "s"}
             {/if}
@@ -193,8 +205,13 @@
               {#if account.institution}<span class="muted where">{account.institution}</span>{/if}
             </div>
             <div class="row-meta">
-              {account.liability ? "owed" : "cash"}
+              {account.liability ? "owed" : isAsset(account.kind) ? "value" : "cash"}
               {money(account.total)}
+              {#if account.equity !== null}
+                · {money(account.owedAgainst)} owed on {account.loanName} ·
+                <span class:neg={account.equity.startsWith("-")}>{money(account.equity)} equity</span>
+              {/if}
+              {#if account.secures} · secured against {account.secures}{/if}
               {#if account.holdingCount > 0}
                 · {account.holdingCount} holding{account.holdingCount === 1 ? "" : "s"}
                 {money(account.holdings)}

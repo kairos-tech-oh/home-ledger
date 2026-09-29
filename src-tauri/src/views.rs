@@ -46,6 +46,14 @@ pub struct AccountView {
     pub debt_count: usize,
     /// Cash plus holdings, less what is owed.
     pub net: String,
+    /// On a property or vehicle, the loan secured against it.
+    pub loan_account_id: String,
+    pub loan_name: String,
+    /// What that loan owes, and value less that: the equity.
+    pub owed_against: Option<String>,
+    pub equity: Option<String>,
+    /// On a loan, the property or vehicle it is secured against.
+    pub secures: String,
 }
 
 #[derive(Serialize)]
@@ -370,7 +378,23 @@ fn accounts_of(doc: &Ledger) -> Vec<AccountView> {
                 account.total.unwrap_or(Money::ZERO) + holdings - debts
             };
 
+            // Only a link to an account that is still a loan counts; one whose
+            // kind has since changed is shown as no link at all.
+            let loan = doc
+                .account(&account.loan_account_id)
+                .filter(|l| account.can_secure_a_loan() && l.can_be_secured());
+            let owed_against = loan.map(ledger_math::gross_owed);
             AccountView {
+                loan_account_id: loan.map(|l| l.id.clone()).unwrap_or_default(),
+                loan_name: loan.map(|l| l.name.clone()).unwrap_or_default(),
+                owed_against: owed_against.map(amount),
+                equity: owed_against.map(|o| amount(account.total.unwrap_or(Money::ZERO) - o)),
+                secures: doc
+                    .accounts
+                    .iter()
+                    .find(|a| a.can_secure_a_loan() && a.loan_account_id == account.id)
+                    .map(|a| a.name.clone())
+                    .unwrap_or_default(),
                 id: account.id.clone(),
                 name: account.name.clone(),
                 kind: account.kind.clone(),

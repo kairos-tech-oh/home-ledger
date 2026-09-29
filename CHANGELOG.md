@@ -15,6 +15,9 @@ described here but have no tags of their own.
   and the sign of a purchase are worked out from the file and can be corrected;
   payments, refunds and charges already on the statement are left out; imported
   charges are attributed to All.
+- Property and Vehicle accounts: what a home or car is worth, counted as an
+  asset. Either can name the loan secured against it, and the Accounts page
+  shows value, what is owed and the equity together.
 
 ## [0.2.0] - 2026-09-29
 

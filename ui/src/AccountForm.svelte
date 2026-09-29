@@ -1,14 +1,17 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { accountKinds, type AccountView } from "./ledger";
+  import { accountKinds, money, type AccountView } from "./ledger";
 
   let {
     existing = null,
+    accounts = [],
     onsave,
     oncancel,
     busy = false,
   }: {
     existing?: AccountView | null;
+    /** Every account, for choosing the loan against a property or vehicle. */
+    accounts?: AccountView[];
     onsave: (fields: Record<string, unknown>) => void;
     oncancel: () => void;
     busy?: boolean;
@@ -20,6 +23,18 @@
   let total = $state(untrack(() => existing?.total ?? ""));
   let availableCredit = $state(untrack(() => existing?.availableCredit ?? ""));
   let notes = $state(untrack(() => existing?.notes ?? ""));
+  let loanAccountId = $state(untrack(() => existing?.loanAccountId ?? ""));
+
+  // A home or a car: its total is what it is worth, and a loan can be secured
+  // against it so the two read together as equity.
+  const secured = $derived(kind === "property" || kind === "vehicle");
+  const loans = $derived(
+    accounts.filter(
+      (a) =>
+        (a.kind === "loan" || a.kind === "heloc") &&
+        (!a.secures || a.id === existing?.loanAccountId),
+    ),
+  );
 
   const takesCredit = $derived(kind === "credit" || kind === "heloc");
   // Loans are owed too, but do not carry a credit limit.
@@ -36,6 +51,7 @@
       notes: notes.trim(),
       total: total.trim() === "" ? null : total.trim(),
     };
+    if (secured) fields.loanAccountId = loanAccountId;
     if (takesCredit) {
       fields.availableCredit = availableCredit.trim() === "" ? null : availableCredit.trim();
     }
@@ -63,9 +79,24 @@
     <input bind:value={institution} placeholder="optional" />
   </label>
   <label class="field">
-    <span>{owed ? "Balance owed" : "Cash balance"}</span>
+    <span>{owed ? "Balance owed" : secured ? "What it is worth" : "Cash balance"}</span>
     <input bind:value={total} inputmode="decimal" placeholder="leave blank for none" />
   </label>
+  {#if secured}
+    <label class="field">
+      <span>Loan against it</span>
+      <select bind:value={loanAccountId}>
+        <option value="">None</option>
+        {#each loans as loan (loan.id)}
+          <option value={loan.id}>{loan.name} · {money(loan.total)} owed</option>
+        {/each}
+      </select>
+    </label>
+    <p class="note">
+      Its value counts as an asset and the loan as a debt, so net worth includes the equity.
+      Update the value now and then; nothing looks it up.
+    </p>
+  {/if}
   {#if takesCredit}
     <label class="field">
       <span>Available credit</span>

@@ -15,6 +15,8 @@ pub const ACCOUNT_TYPES: &[&str] = &[
     "retirement-traditional",
     "loan",
     "investment",
+    "property",
+    "vehicle",
     "other",
 ];
 
@@ -24,6 +26,11 @@ pub const LIABILITY_TYPES: &[&str] = &["credit", "heloc", "loan"];
 pub const RETIREMENT_TYPES: &[&str] = &["retirement-roth", "retirement-traditional"];
 /// Types that record how much more could be borrowed.
 pub const CREDIT_TYPES: &[&str] = &["credit", "heloc"];
+/// Things owned that a loan can be secured against: a home, a car. Their
+/// total is what they are worth, counted as an asset like any other.
+pub const SECURED_TYPES: &[&str] = &["property", "vehicle"];
+/// Types that can be the loan against one of those.
+pub const SECURING_TYPES: &[&str] = &["loan", "heloc"];
 
 pub const DEBT_KINDS: &[&str] = &[
     "credit-card",
@@ -186,9 +193,20 @@ pub struct Account {
     pub retirement: Option<Retirement>,
     #[serde(default)]
     pub debts: Vec<Debt>,
+    /// On a property or vehicle, the loan account secured against it, so the
+    /// two read together as equity. Absent rather than empty when unset, so a
+    /// document written before this field reads and writes back unchanged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub loan_account_id: String,
 }
 
 impl Account {
+    pub fn can_secure_a_loan(&self) -> bool {
+        SECURED_TYPES.contains(&self.kind.as_str())
+    }
+    pub fn can_be_secured(&self) -> bool {
+        SECURING_TYPES.contains(&self.kind.as_str())
+    }
     pub fn is_liability(&self) -> bool {
         LIABILITY_TYPES.contains(&self.kind.as_str())
     }

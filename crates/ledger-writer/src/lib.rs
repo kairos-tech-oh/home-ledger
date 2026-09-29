@@ -332,6 +332,7 @@ impl Writer {
         let (after, name) = match kind {
             Kind::Account => {
                 let record = clean::account(from_json(&merged)?, keep)?;
+                check_secured_loan(ledger, &record)?;
                 let name = record.name.clone();
                 (store(&mut ledger.accounts, record, |a| &a.id)?, name)
             }
@@ -730,6 +731,35 @@ fn take<T>(rows: &mut Vec<T>, id: &str, key: impl Fn(&T) -> &String) -> Option<T
         .map(|index| rows.remove(index))
 }
 
+/// A property or vehicle may name one loan or HELOC that exists, and that no
+/// other property or vehicle already names; otherwise the equity it shows
+/// would count one loan twice.
+fn check_secured_loan(ledger: &Ledger, record: &ledger_domain::Account) -> Result<(), WriteError> {
+    let wanted = &record.loan_account_id;
+    if wanted.is_empty() {
+        return Ok(());
+    }
+    match ledger.account(wanted) {
+        Some(loan) if loan.can_be_secured() && loan.id != record.id => {}
+        _ => {
+            return Err(WriteError::Refused(
+                "choose a loan or HELOC account for this to secure".into(),
+            ));
+        }
+    }
+    if let Some(other) = ledger
+        .accounts
+        .iter()
+        .find(|a| a.id != record.id && &a.loan_account_id == wanted)
+    {
+        return Err(WriteError::Refused(format!(
+            "that loan is already secured against {}",
+            other.name
+        )));
+    }
+    Ok(())
+}
+
 /// Clear references to a record that has just been deleted, so nothing points
 /// at an id that is no longer there.
 fn unlink(ledger: &mut Ledger, kind: Kind, id: &str) {
@@ -750,6 +780,11 @@ fn unlink(ledger: &mut Ledger, kind: Kind, id: &str) {
     }
     match kind {
         Kind::Account => {
+            for account in ledger.accounts.iter_mut() {
+                if account.loan_account_id == id {
+                    account.loan_account_id.clear();
+                }
+            }
             for stream in ledger.income.iter_mut() {
                 if stream.account_id == id {
                     stream.account_id.clear();
@@ -1618,5 +1653,144 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod secured_tests {
+    use crate::{Kind, Op, Writer};
+    use ledger_domain::Ledger;
+    use serde_json::{Value, json};
+
+    fn set(ledger: &mut Ledger, id: &str, record: Value) -> Result<String, crate::WriteError> {
+        Writer::new("test").apply(
+            ledger,
+            &Op::Set {
+                kind: Kind::Account,
+                id: id.into(),
+                record,
+            },
+        )?;
+        Ok(if id.is_empty() {
+            ledger.accounts.last().unwrap().id.clone()
+        } else {
+            id.to_string()
+        })
+    }
+
+    #[test]
+    fn a_home_names_the_mortgage_against_it() {
+        let mut ledger = Ledger::default();
+        let mortgage = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Mortgage", "type": "loan", "total": 195494 }),
+        )
+        .unwrap();
+        let condo = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Condo", "type": "property", "total": 260000, "loanAccountId": mortgage }),
+        )
+        .unwrap();
+        assert_eq!(ledger.account(&condo).unwrap().loan_account_id, mortgage);
+        // Value is an asset and the loan a debt: net is the equity.
+        let worth = ledger_math::net_worth(&ledger);
+        assert_eq!(worth.net, ledger_domain::Money::from(260000 - 195494));
+    }
+
+    #[test]
+    fn only_a_loan_or_heloc_can_be_named_and_only_once() {
+        let mut ledger = Ledger::default();
+        let checking = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Checking", "type": "checking" }),
+        )
+        .unwrap();
+        assert!(
+            set(
+                &mut ledger,
+                "",
+                json!({ "name": "Condo", "type": "property", "loanAccountId": checking })
+            )
+            .is_err()
+        );
+        assert!(
+            set(
+                &mut ledger,
+                "",
+                json!({ "name": "Condo", "type": "property", "loanAccountId": "a".repeat(32) })
+            )
+            .is_err()
+        );
+
+        let loan = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Auto Loan", "type": "loan" }),
+        )
+        .unwrap();
+        set(
+            &mut ledger,
+            "",
+            json!({ "name": "Car", "type": "vehicle", "loanAccountId": loan }),
+        )
+        .unwrap();
+        let err = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Second car", "type": "vehicle", "loanAccountId": loan }),
+        );
+        assert!(err.is_err_and(|e| e.to_string().contains("Car")));
+    }
+
+    #[test]
+    fn only_a_property_or_vehicle_keeps_a_link() {
+        let mut ledger = Ledger::default();
+        let loan = set(&mut ledger, "", json!({ "name": "Loan", "type": "loan" })).unwrap();
+        let car = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Car", "type": "vehicle", "loanAccountId": loan }),
+        )
+        .unwrap();
+        set(&mut ledger, &car, json!({ "type": "other" })).unwrap();
+        assert!(ledger.account(&car).unwrap().loan_account_id.is_empty());
+    }
+
+    #[test]
+    fn deleting_the_loan_lets_go_of_the_link() {
+        let mut ledger = Ledger::default();
+        let loan = set(&mut ledger, "", json!({ "name": "Loan", "type": "loan" })).unwrap();
+        let car = set(
+            &mut ledger,
+            "",
+            json!({ "name": "Car", "type": "vehicle", "loanAccountId": loan }),
+        )
+        .unwrap();
+        Writer::new("test")
+            .apply(
+                &mut ledger,
+                &Op::Delete {
+                    kind: Kind::Account,
+                    id: loan,
+                },
+            )
+            .unwrap();
+        assert!(ledger.account(&car).unwrap().loan_account_id.is_empty());
+    }
+
+    #[test]
+    fn an_account_without_a_link_writes_no_link() {
+        let mut ledger = Ledger::default();
+        set(
+            &mut ledger,
+            "",
+            json!({ "name": "Checking", "type": "checking" }),
+        )
+        .unwrap();
+        let out = String::from_utf8(ledger.to_bytes().unwrap()).unwrap();
+        assert!(!out.contains("loanAccountId"));
     }
 }

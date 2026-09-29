@@ -16,6 +16,11 @@ export interface AccountView {
   debts: string;
   debtCount: number;
   net: string;
+  loanAccountId: string;
+  loanName: string;
+  owedAgainst: string | null;
+  equity: string | null;
+  secures: string;
 }
 
 export interface BucketView {
@@ -692,6 +697,8 @@ export const accountKinds = [
   { value: "checking", label: "Checking" },
   { value: "savings", label: "Savings" },
   { value: "investment", label: "Investment" },
+  { value: "property", label: "Property" },
+  { value: "vehicle", label: "Vehicle" },
   { value: "retirement-roth", label: "Retirement (Roth)" },
   { value: "retirement-traditional", label: "Retirement (Traditional)" },
   { value: "credit", label: "Credit card" },

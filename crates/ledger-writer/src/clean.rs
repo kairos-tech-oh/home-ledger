@@ -55,6 +55,11 @@ pub fn account(mut record: Account, keep: &str) -> Result<Account, WriteError> {
     } else {
         record.available_credit = cents_opt(record.available_credit);
     }
+    record.loan_account_id = if record.can_secure_a_loan() {
+        valid_id(&record.loan_account_id)
+    } else {
+        String::new()
+    };
     record.retirement = match record.retirement.take() {
         Some(block) if record.is_retirement() => Some(retirement(block, &crate::this_month())?),
         _ => None,
