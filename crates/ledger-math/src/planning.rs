@@ -211,7 +211,7 @@ pub fn project(ledger: &Ledger, from: Day, to: Day) -> Plan {
             }
         })
         .collect();
-    buckets.sort_by(|a, b| b.projected.cmp(&a.projected));
+    buckets.sort_by_key(|b| std::cmp::Reverse(b.projected));
     Plan { months, buckets }
 }
 

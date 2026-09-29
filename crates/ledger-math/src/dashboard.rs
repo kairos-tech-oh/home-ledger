@@ -120,7 +120,7 @@ fn buckets_by_total(ledger: &Ledger) -> Vec<(&ledger_domain::Bucket, Money)> {
         .iter()
         .map(|b| (b, bucket_worth(ledger, &b.id).total))
         .collect();
-    rows.sort_by(|a, b| b.1.cmp(&a.1));
+    rows.sort_by_key(|row| std::cmp::Reverse(row.1));
     rows
 }
 
@@ -148,7 +148,7 @@ pub fn suggested_refs(ledger: &Ledger, kind: &str) -> Vec<String> {
                 .iter()
                 .map(|a| (a, account_net(ledger, a).abs()))
                 .collect();
-            rows.sort_by(|a, b| b.1.cmp(&a.1));
+            rows.sort_by_key(|row| std::cmp::Reverse(row.1));
             rows.iter().take(4).map(|(a, _)| a.id.clone()).collect()
         }
         "goals" => ledger.goals.iter().take(4).map(|g| g.id.clone()).collect(),

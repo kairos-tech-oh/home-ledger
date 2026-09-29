@@ -246,7 +246,7 @@ pub fn dashboard_view(doc: &Ledger, points: &[Point], today: Day, offset: i64) -
             (worth, choice)
         })
         .collect();
-    buckets.sort_by(|a, b| b.0.cmp(&a.0));
+    buckets.sort_by_key(|(worth, _)| std::cmp::Reverse(*worth));
     let mut accounts: Vec<Choice> = doc
         .accounts
         .iter()
@@ -267,7 +267,7 @@ pub fn dashboard_view(doc: &Ledger, points: &[Point], today: Day, offset: i64) -
             }
         })
         .collect();
-    accounts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    accounts.sort_by_key(|a| a.name.to_lowercase());
     let goals: Vec<Choice> = doc
         .goals
         .iter()
