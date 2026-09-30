@@ -9,8 +9,10 @@ Pushing a tag `vX.Y.Z` runs `.github/workflows/build.yml`:
 
 1. `check` runs formatting, lints and every test.
 2. `bundle` builds the Windows (NSIS, MSI) and Linux (deb, rpm, AppImage)
-   installers. With the update key available it also writes a `.sig` beside
-   each installer the updater can use.
+   installers. It runs only for a tag or a manual run from the Actions tab,
+   and keeps its files for two days: the release is their permanent home.
+   With the update key available it also writes a `.sig` beside each
+   installer the updater can use.
 3. `release` writes `latest.json` from those signatures and creates a **draft**
    GitHub release with everything attached.
 

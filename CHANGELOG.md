@@ -10,6 +10,13 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-29
+
+### Fixed
+- "Spent by" is a dropdown of the family's names, with "Someone else…" for a
+  name not on the list. The suggestion box it replaces hid every name that did
+  not match what it already said.
+
 ## [0.2.1] - 2026-09-29
 
 ### Added
