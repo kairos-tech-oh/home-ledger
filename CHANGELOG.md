@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-30
+
 ### Added
 - Account sections open with the most accounts first, and Arrange puts them in
   any order. The order is kept in the ledger, so it lasts through updates and
