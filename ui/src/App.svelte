@@ -60,7 +60,7 @@
       label: "Ledger",
       pages: [
         ["history", "History"],
-        ["storage", "Storage"],
+        ["storage", "Settings"],
       ],
     },
   ] as const;
@@ -217,7 +217,7 @@
   {#if firstRun}
     <p class="note">
       Your ledger can live on this computer, in storage you own, or both. Nothing here
-      is permanent — all of it can be changed later in Storage.
+      is permanent — all of it can be changed later in Settings.
     </p>
   {/if}
 

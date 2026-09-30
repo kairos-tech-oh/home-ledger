@@ -32,7 +32,7 @@ Actions made — not a new release made by hand from the tag — is what ships i
 3. Merge to `main`, tag the merge commit `vX.Y.Z`, push the tag.
 4. When the workflow is green, open the draft release, read it, publish it.
 
-Each copy checks on launch and offers the update; Storage → About checks on
+Each copy checks on launch and offers the update; Settings → About checks on
 demand. On Windows the installer runs passively and the app restarts itself.
 
 ## The update key

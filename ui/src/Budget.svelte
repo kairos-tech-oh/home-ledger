@@ -363,15 +363,6 @@
     display: flex;
     gap: 0.6rem;
   }
-  .fold {
-    width: 100%;
-    border: none;
-    text-align: left;
-  }
-  .chevron {
-    width: 0.8rem;
-    color: var(--dim);
-  }
   /* The subtotal takes its group's colour, the way the plugin does it. */
   .blue-text {
     color: var(--pill-blue);

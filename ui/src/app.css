@@ -366,6 +366,17 @@ input::placeholder {
   color: var(--dim);
 }
 
+.group-head.fold {
+  width: 100%;
+  border: none;
+  text-align: left;
+}
+
+.chevron {
+  width: 0.8rem;
+  color: var(--dim);
+}
+
 /* --------------------------------------------------------------- pills */
 
 .pill {
@@ -420,6 +431,29 @@ input::placeholder {
   background: var(--raised);
   display: grid;
   gap: 0.45rem;
+}
+
+.modal {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 0.4rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+  background: var(--menu);
+  color: var(--text);
+  overflow: auto;
+}
+
+.modal::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal .panel {
+  margin: 0;
+}
+
+.modal .error {
+  margin: 0.2rem 0.4rem;
 }
 
 .panel h3 {

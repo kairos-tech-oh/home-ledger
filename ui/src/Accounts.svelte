@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { SvelteSet } from "svelte/reactivity";
   import AccountForm from "./AccountForm.svelte";
   import { accountKinds, kindLabel, ledger, money, type AccountView } from "./ledger";
   import type { Overview } from "./lib";
+  import Modal from "./Modal.svelte";
   import { sections } from "./order";
 
   let {
@@ -19,6 +21,18 @@
   let view = $state<"cards" | "table">("cards");
 
   const open = $derived(adding || editing !== null);
+
+  const collapsed = new SvelteSet<string>();
+
+  function fold(kind: string) {
+    if (!collapsed.delete(kind)) collapsed.add(kind);
+  }
+
+  function close() {
+    adding = false;
+    editing = null;
+    error = "";
+  }
 
   // One section per kind of account, in the order the kinds are offered.
   const grouped = $derived(
@@ -111,24 +125,29 @@
   </div>
 </div>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !open}<p class="error">{error}</p>{/if}
 
-{#if adding}
-  <AccountForm
-    {accounts}
-    onsave={(f) => run(() => ledger.apply({ op: "set", kind: "account", id: "", record: f }))}
-    oncancel={() => (adding = false)}
-    {busy}
-  />
-{:else if editing}
-  <AccountForm
-    existing={editing}
-    {accounts}
-    onsave={(f) =>
-      run(() => ledger.apply({ op: "set", kind: "account", id: editing!.id, record: f }))}
-    oncancel={() => (editing = null)}
-    {busy}
-  />
+{#if open}
+  <Modal onclose={close}>
+    {#if error}<p class="error">{error}</p>{/if}
+    {#if editing}
+      <AccountForm
+        existing={editing}
+        {accounts}
+        onsave={(f) =>
+          run(() => ledger.apply({ op: "set", kind: "account", id: editing!.id, record: f }))}
+        oncancel={close}
+        {busy}
+      />
+    {:else}
+      <AccountForm
+        {accounts}
+        onsave={(f) => run(() => ledger.apply({ op: "set", kind: "account", id: "", record: f }))}
+        oncancel={close}
+        {busy}
+      />
+    {/if}
+  </Modal>
 {/if}
 
 {#if confirmDelete}
@@ -151,15 +170,23 @@
 {/if}
 
 {#each grouped as group (group.key)}
-  <div class="group-head">
+  <button
+    class="group-head fold"
+    onclick={() => fold(group.key)}
+    aria-expanded={!collapsed.has(group.key)}
+    title={collapsed.has(group.key) ? "Show these accounts" : "Hide these accounts"}
+  >
+    <span class="chevron">{collapsed.has(group.key) ? "▸" : "▾"}</span>
     <span class="pill {pillColour(group.key)}">{kindLabel(group.key)}</span>
     <span class="group-count">
       {group.items.length} account{group.items.length === 1 ? "" : "s"}
     </span>
     <span class="group-total" class:neg={group.net.startsWith("-")}>{money(group.net)}</span>
-  </div>
+  </button>
 
-  {#if view === "cards"}
+  {#if collapsed.has(group.key)}
+    <!-- hidden: the heading and its subtotal only -->
+  {:else if view === "cards"}
     <div class="cards">
       {#each group.items as account (account.id)}
         <article class="card">
