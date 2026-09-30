@@ -10,6 +10,17 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-29
+
+### Added
+- Clicking an account section's heading hides the accounts under it, and
+  clicking again shows them. The heading keeps its count and subtotal.
+
+### Changed
+- Adding or editing an account opens a popup instead of a form at the top of
+  the page.
+- The Storage tab is now called Settings.
+
 ## [0.2.2] - 2026-09-29
 
 ### Fixed
