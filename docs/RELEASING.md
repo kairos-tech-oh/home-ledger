@@ -82,3 +82,38 @@ setting missing, the build fails rather than shipping unsigned.
 
 Linux packages are not Authenticode-signed; their integrity for updates comes
 from the update key, as on Windows.
+
+## The AppImage and libwayland
+
+Left alone, Tauri's AppImage bundles the build machine's `libwayland-client`,
+`-cursor`, `-egl` and `-server`, but not Mesa, which always comes from the
+machine running the app. A Mesa newer than the bundled libwayland (Mesa 25 and
+later: current Arch, Fedora, Ubuntu 26.04) cannot create an EGL display with
+it, so WebKit's web process aborts with `Could not create surfaceless EGL
+display: EGL_BAD_ALLOC` (or `EGL_BAD_PARAMETER`) and the window stays blank or
+never opens. `WEBKIT_DISABLE_DMABUF_RENDERER` and similar variables do not help:
+the abort happens before WebKit reads them. The `.deb` and `.rpm` link the
+system's libwayland and are unaffected.
+
+The fix is to not bundle libwayland, so the app uses the one matching the
+system's Mesa. Its soname has not changed in over a decade, so this is safe.
+Tauri has no setting for excluding a library, and the linuxdeploy it uses
+predates the upstream excludelist entry for libwayland
+([tauri-apps/tauri#15665](https://github.com/tauri-apps/tauri/issues/15665)).
+So before bundling the AppImage, the workflow runs
+`tools/release/appimage-gtk-plugin.sh`. That script puts linuxdeploy's GTK
+plugin into Tauri's tool cache (`~/.cache/tauri`), pinned to a commit and
+checked against a SHA-256, with one line appended that deletes
+`libwayland-*.so*` from the AppDir. Tauri only downloads the plugin when the
+cache lacks it, so the patched copy is the one used. The deletion runs before
+the image is packed, and Tauri signs the AppImage afterwards, so the update
+signature stays valid.
+
+`tools/release/appimage-check.sh` then unpacks the AppImage and fails the job
+if any `libwayland-*` is inside. Building the AppImage is still best effort,
+but an AppImage that is built and would not start is not released, because
+the updater gives every Linux copy that file.
+
+To move the plugin to a newer commit, change `rev` and `sum` in the script
+together. Once Tauri ships a bundler that leaves libwayland out, both steps can
+go.

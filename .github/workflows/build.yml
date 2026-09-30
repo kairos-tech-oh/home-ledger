@@ -114,10 +114,18 @@ jobs:
       # AppImage shells out to linuxdeploy, which needs FUSE and network at
       # bundle time. It is the portable Linux artifact, so it is worth having,
       # but it must not fail the build that produced a working .deb.
+      - name: AppImage GTK plugin without libwayland
+        if: matrix.os == 'ubuntu-22.04'
+        run: tools/release/appimage-gtk-plugin.sh
+
       - name: Bundle AppImage (best effort)
         if: matrix.os == 'ubuntu-22.04'
         continue-on-error: true
         run: npm run build -- --bundles appimage --config ci.conf.json
+
+      - name: AppImage bundles no libwayland
+        if: matrix.os == 'ubuntu-22.04' && hashFiles('target/release/bundle/appimage/*.AppImage') != ''
+        run: tools/release/appimage-check.sh target/release/bundle/appimage/*.AppImage
 
       - uses: actions/upload-artifact@v4
         with:
