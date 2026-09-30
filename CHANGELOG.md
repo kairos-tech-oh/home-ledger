@@ -10,6 +10,13 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-29
+
+### Fixed
+- The Linux AppImage opens on systems with a recent Mesa (current Arch, Fedora,
+  Ubuntu 26.04). It carried its own old copy of libwayland, which a new Mesa
+  cannot use, so the window crashed before it drew.
+
 ## [0.2.3] - 2026-09-29
 
 ### Added
