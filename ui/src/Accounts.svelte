@@ -4,14 +4,22 @@
   import { accountKinds, kindLabel, ledger, money, type AccountView } from "./ledger";
   import type { Overview } from "./lib";
   import Modal from "./Modal.svelte";
-  import { sections } from "./order";
+  import { sectionOrder, sections } from "./order";
 
   let {
     accounts,
+    order = [],
     overview,
     onchanged,
-  }: { accounts: AccountView[]; overview: Overview | null; onchanged: () => void } =
-    $props();
+  }: {
+    accounts: AccountView[];
+    /** The section order as arranged, kept in the ledger; empty for the default. */
+    order?: string[];
+    overview: Overview | null;
+    onchanged: () => void;
+  } = $props();
+
+  let arranging = $state(false);
 
   let editing = $state<AccountView | null>(null);
   let adding = $state(false);
@@ -34,9 +42,14 @@
     error = "";
   }
 
-  // One section per kind of account, in the order the kinds are offered.
+  // One section per kind of account: as arranged, or the sections with the
+  // most accounts first, so single-account sections sit at the bottom.
+  const counts = $derived(
+    accounts.reduce<Record<string, number>>((c, a) => ((c[a.kind] = (c[a.kind] ?? 0) + 1), c), {}),
+  );
+  const shown = $derived(sectionOrder(counts, order, accountKinds.map((k) => k.value)));
   const grouped = $derived(
-    sections(accounts, (a) => a.kind, accountKinds.map((k) => k.value)).map((s) => ({
+    sections(accounts, (a) => a.kind, shown).map((s) => ({
       ...s,
       net: s.items.reduce((t, a) => t + Number(a.net), 0).toFixed(2),
     })),
@@ -54,6 +67,20 @@
     if (kind === "loan") return "amber";
     if (kind === "investment") return "blue";
     return "green";
+  }
+
+  /** Saves the order with one section moved; the page follows on reload. */
+  function move(kind: string, delta: -1 | 1) {
+    const next = [...shown];
+    const at = next.indexOf(kind);
+    const to = at + delta;
+    if (at < 0 || to < 0 || to >= next.length) return;
+    [next[at], next[to]] = [next[to], next[at]];
+    arrange(next);
+  }
+
+  function arrange(next: string[]) {
+    run(() => ledger.apply({ op: "account-order-set", order: next }));
   }
 
   const debtRatio = $derived.by(() => {
@@ -119,11 +146,46 @@
       <button class:on={view === "cards"} onclick={() => (view = "cards")}>Cards</button>
       <button class:on={view === "table"} onclick={() => (view = "table")}>Table</button>
     </div>
+    <button class:on={arranging} onclick={() => (arranging = !arranging)}>
+      {arranging ? "Done arranging" : "Arrange"}
+    </button>
     {#if !open}
       <button onclick={() => (adding = true)} disabled={busy}>+ Account</button>
     {/if}
   </div>
 </div>
+
+{#if arranging}
+  <section class="panel arrange">
+    <p class="note">
+      The order the sections appear in. It is kept in the ledger, so it stays through updates
+      and restarts and is the same on every machine.
+    </p>
+    <ol>
+      {#each shown as kind, i (kind)}
+        <li>
+          <span class="pill {pillColour(kind)}">{kindLabel(kind)}</span>
+          <span class="muted">{counts[kind]} account{counts[kind] === 1 ? "" : "s"}</span>
+          <span class="moves">
+            <button class="bare" title="Move up" disabled={busy || i === 0} onclick={() => move(kind, -1)}>▲</button>
+            <button
+              class="bare"
+              title="Move down"
+              disabled={busy || i === shown.length - 1}
+              onclick={() => move(kind, 1)}>▼</button
+            >
+          </span>
+        </li>
+      {/each}
+    </ol>
+    <div class="actions">
+      <button class="bare" disabled={busy || order.length === 0} onclick={() => arrange([])}>
+        Most accounts first
+      </button>
+      <span class="muted">{order.length === 0 ? "Showing the default order." : "Showing your order."}</span>
+    </div>
+  </section>
+{/if}
 
 {#if error && !open}<p class="error">{error}</p>{/if}
 
@@ -290,5 +352,25 @@
   }
   .confirm-text {
     margin: 0 0 0.4rem;
+  }
+  .arrange ol {
+    list-style: none;
+    margin: 0.4rem 0;
+    padding: 0;
+    max-width: 28rem;
+  }
+  .arrange li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.15rem 0;
+  }
+  .moves {
+    margin-left: auto;
+    display: flex;
+  }
+  .controls button.on {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>

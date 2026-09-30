@@ -4,6 +4,7 @@
 
 pub mod dashboard;
 pub mod document;
+pub mod layout;
 pub mod lineage;
 pub mod money;
 pub mod records;

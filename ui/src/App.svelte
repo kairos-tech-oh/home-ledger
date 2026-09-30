@@ -226,7 +226,7 @@
   {:else if tab === "dashboard"}
     <Dashboard {revision} onchanged={load} onopen={open} />
   {:else if tab === "accounts" && view}
-    <Accounts accounts={view.accounts} {overview} onchanged={load} />
+    <Accounts accounts={view.accounts} order={view.accountOrder} {overview} onchanged={load} />
   {:else if tab === "holdings" && view}
     <Holdings
       holdings={view.holdings}

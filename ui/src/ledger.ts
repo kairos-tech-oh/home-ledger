@@ -501,6 +501,7 @@ export interface LedgerView {
   goals: GoalView[];
   goalTotals: GoalTotalsView;
   templates: TemplateView[];
+  accountOrder: string[];
   members: string[];
   budgetTypes: string[];
   investmentTypes: string[];
@@ -551,7 +552,8 @@ export type Op =
   | { op: "template-activate"; id: string; keepCurrent: boolean }
   | { op: "type-add"; list: "budget" | "investment"; name: string }
   | { op: "type-delete"; list: "budget" | "investment"; name: string }
-  | { op: "dashboard-set"; dashboard: { v: 1; widgets: Widget[] } };
+  | { op: "dashboard-set"; dashboard: { v: 1; widgets: Widget[] } }
+  | { op: "account-order-set"; order: string[] };
 
 export type RecordKind =
   | "account"

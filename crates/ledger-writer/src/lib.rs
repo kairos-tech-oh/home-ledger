@@ -13,6 +13,7 @@ pub mod clean;
 mod dashboard;
 mod holdings;
 pub mod import;
+mod layout;
 pub mod reconcile;
 mod retirement;
 mod templates;
@@ -202,6 +203,11 @@ pub enum Op {
     DashboardSet {
         dashboard: Value,
     },
+    /// The order of the Accounts page's sections; empty for the default.
+    AccountOrderSet {
+        #[serde(default)]
+        order: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -260,6 +266,7 @@ impl Writer {
             Op::TypeAdd { list, name } => self.type_add(ledger, *list, name)?,
             Op::TypeDelete { list, name } => self.type_delete(ledger, *list, name)?,
             Op::DashboardSet { dashboard } => self.dashboard_set(ledger, dashboard)?,
+            Op::AccountOrderSet { order } => self.account_order_set(ledger, order)?,
         };
         Ok(entry)
     }
