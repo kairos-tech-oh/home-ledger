@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-30
+
 ### Added
 - Payday buttons on the Savings page: "Add all" adds one paycheck of an
   earner's contributions to every bucket they fund, with an Undo.
