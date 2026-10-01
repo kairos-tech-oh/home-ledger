@@ -36,6 +36,8 @@
   let target = $state("");
   let notes = $state("");
   let locked = $state(false);
+  let whenShort = $state<BucketView["whenShort"]>("");
+  let coverBucketId = $state("");
 
   const open = $derived(adding || editing !== null || moving !== null);
   const ordered = $derived(largestFirst(buckets));
@@ -59,6 +61,8 @@
     target = bucket?.target ?? "";
     notes = bucket?.notes ?? "";
     locked = bucket?.locked ?? false;
+    whenShort = bucket?.whenShort ?? "";
+    coverBucketId = bucket?.coverBucketId ?? "";
     error = "";
   }
 
@@ -101,6 +105,8 @@
           targetAmount: target.trim() === "" ? null : target.trim(),
           notes: notes.trim(),
           locked,
+          whenShort: whenShort === "bucket" && !coverBucketId ? "" : whenShort,
+          coverBucketId: whenShort === "bucket" ? coverBucketId : "",
         },
       }),
     );
@@ -224,6 +230,26 @@
       <input type="checkbox" bind:checked={locked} />
       <span>Locked — funds cannot be moved out of this bucket</span>
     </label>
+    <label class="field">
+      <span>When a statement needs more than it holds</span>
+      <select bind:value={whenShort}>
+        <option value="">Ask when settling</option>
+        <option value="bucket">Take the rest from another bucket</option>
+        <option value="everyday">Charge the rest to everyday spending</option>
+        <option value="negative">Let it go below zero</option>
+      </select>
+    </label>
+    {#if whenShort === "bucket"}
+      <label class="field">
+        <span>The rest comes from</span>
+        <select bind:value={coverBucketId}>
+          <option value="" disabled>Choose a bucket</option>
+          {#each ordered.filter((b) => b.id !== editing?.id && !b.locked) as other (other.id)}
+            <option value={other.id}>{other.name}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     <div class="actions">
       <button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
       <button type="button" class="bare" onclick={() => { editing = null; adding = false; }}>
@@ -272,11 +298,17 @@
           {#if bucket.target}<span class="card-where">of {money(bucket.target)}</span>{/if}
         </div>
         <div class="card-name">{bucket.name}</div>
-        <div class="card-figure pos">{money(bucket.total)}</div>
+        <div class="card-figure" class:pos={!bucket.total.startsWith("-")} class:neg={bucket.total.startsWith("-")}>{money(bucket.total)}</div>
         {#if bucket.progress !== null && bucket.target}
           <span class="bar" title="{bucket.progress.toFixed(0)}% of {money(bucket.target)}">
             <span class="fill" style:width="{Math.min(bucket.progress, 100)}%"></span>
           </span>
+        {/if}
+        {#if bucket.committed !== "0.00"}
+          <div class="card-note" class:warn-text={bucket.committedShort !== null}>
+            {money(bucket.committed)} on open statements{#if bucket.committedShort !== null}
+              · {money(bucket.committedShort)} short{/if}
+          </div>
         {/if}
         <div class="card-note">
           cash {money(bucket.cash)}
@@ -340,7 +372,7 @@
         </div>
       </div>
 
-      <span class="row-amount pos">{money(bucket.total)}</span>
+      <span class="row-amount" class:pos={!bucket.total.startsWith("-")} class:neg={bucket.total.startsWith("-")}>{money(bucket.total)}</span>
 
       <div class="row-actions">
         <button class="bare" onclick={() => start(bucket, "add")} disabled={busy} title="Add">

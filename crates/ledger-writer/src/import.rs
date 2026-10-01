@@ -203,11 +203,14 @@ mod tests {
     }
 
     #[test]
-    fn a_negative_bucket_balance_is_floored_on_the_way_in() {
+    fn an_overdrawn_bucket_stays_overdrawn_on_the_way_in() {
+        // Only a settle told to let a bucket go negative writes one, and its
+        // undo needs the debt to still be there. Raising it to zero here
+        // would forgive it silently.
         let raw =
             document(r#"{ "buckets": [{ "id": "b", "name": "Emergency", "currentTotal": -40 }] }"#);
         let out = read(&raw).expect("imported");
-        assert_eq!(out.ledger.buckets[0].current_total, Money::ZERO);
+        assert_eq!(out.ledger.buckets[0].current_total, Money::from(-40));
     }
 
     #[test]

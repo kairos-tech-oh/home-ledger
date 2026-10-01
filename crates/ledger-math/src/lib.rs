@@ -11,6 +11,7 @@ pub mod calendar;
 pub mod dashboard;
 pub mod payday;
 pub mod planning;
+pub mod shortfall;
 pub mod snapshots;
 pub mod spending;
 

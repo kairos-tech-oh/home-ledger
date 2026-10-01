@@ -103,6 +103,14 @@ unrounded contribution to the current balance and rounded once at the end;
 the port rounds the contribution to cents first, so "now + in − out" on the
 Planning screen adds up to "ends" exactly. They can differ by a cent.
 
+**A short bucket need not stop a settle.** The prototype refused to settle a
+statement that needed more from a bucket than it held. The port still refuses
+by default, but a settle can say how to cover the rest: from another bucket,
+as everyday spending, or by letting the bucket go below zero. A bucket can
+remember its choice. That last option means a bucket balance can now be
+negative, which the prototype never allowed. Only a settle makes one negative;
+money added fills it back up, and nothing can be spent from it meanwhile.
+
 **A missing directory is not an empty store.** The prototype read a missing
 file as "nothing stored yet". For a network share that is dangerous: an
 unmounted share looks identical to an empty one, and adopting "empty" proposes

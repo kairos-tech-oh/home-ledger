@@ -26,7 +26,10 @@ pub fn goal_progress(ledger: &Ledger, goal: &Goal) -> Option<f64> {
 
 fn percent_of(saved: Money, target: Money) -> f64 {
     let pct = saved.inner() / target.inner() * Decimal::from(100);
-    pct.min(Decimal::from(100)).to_f64().unwrap_or(0.0)
+    // An overdrawn bucket is no progress, not negative progress.
+    pct.clamp(Decimal::ZERO, Decimal::from(100))
+        .to_f64()
+        .unwrap_or(0.0)
 }
 
 /// The three figures across every goal.

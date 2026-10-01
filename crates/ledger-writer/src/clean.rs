@@ -199,8 +199,24 @@ pub fn bucket(mut record: Bucket, keep: &str) -> Result<Bucket, WriteError> {
         keep.to_string()
     };
     record.target_amount = cents_opt(record.target_amount);
-    // Cash only, and a bucket can never hold a negative balance.
-    record.current_total = cents(record.current_total).floor_at_zero();
+    // Cash only. A balance below zero comes only from a settle that was told
+    // to let the bucket go negative, and is kept so the bucket shows what it
+    // owes; nothing sets one by hand (bucket-total and moves floor at zero).
+    record.current_total = cents(record.current_total);
+    record.when_short = if ledger_domain::records::WHEN_SHORT.contains(&record.when_short.as_str())
+    {
+        record.when_short.clone()
+    } else {
+        String::new()
+    };
+    record.cover_bucket_id = if record.when_short == "bucket" {
+        valid_id(&record.cover_bucket_id)
+    } else {
+        String::new()
+    };
+    if record.when_short == "bucket" && record.cover_bucket_id.is_empty() {
+        record.when_short.clear();
+    }
     record.linked_account_id = valid_id(&record.linked_account_id);
     record.notes = plain(&record.notes, NOTES_MAX);
     Ok(record)

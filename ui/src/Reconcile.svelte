@@ -1,6 +1,7 @@
 <script lang="ts">
   import StatementForm from "./StatementForm.svelte";
   import ImportPanel from "./ImportPanel.svelte";
+  import ShortfallChoice, { type Choice } from "./ShortfallChoice.svelte";
   import {
     ledger,
     money,
@@ -63,16 +64,67 @@
     run(() => ledger.apply({ op: "reconcile-set", id, record }));
   }
 
+  // How each short bucket is covered, for the statement being settled.
+  // Starts on each bucket's own default.
+  let choices = $state<Record<string, Choice>>({});
+
+  function askSettle(record: ReconciliationView) {
+    close();
+    choices = Object.fromEntries(
+      record.shortfalls.map((s) => [
+        s.bucketId,
+        { how: s.whenShort, fromBucketId: s.coverBucketId, remember: false } satisfies Choice,
+      ]),
+    );
+    confirming = { record, action: "settle" };
+  }
+
+  // Every short bucket needs a way to be covered before the settle can run.
+  const coversChosen = $derived(
+    !confirming ||
+      confirming.action !== "settle" ||
+      confirming.record.shortfalls.every((s) => {
+        const c = choices[s.bucketId];
+        return c && c.how !== "" && (c.how !== "bucket" || c.fromBucketId !== "");
+      }),
+  );
+
   function confirmed() {
     const { record, action } = confirming!;
-    const op =
-      action === "settle"
-        ? ({ op: "reconcile-settle", id: record.id } as const)
-        : action === "undo"
+    if (action !== "settle") {
+      const op =
+        action === "undo"
           ? ({ op: "reconcile-undo", id: record.id } as const)
           : ({ op: "reconcile-delete", id: record.id } as const);
-    run(() => ledger.apply(op));
+      run(() => ledger.apply(op));
+      return;
+    }
+    const cover = record.shortfalls.map((s) => {
+      const c = choices[s.bucketId];
+      return {
+        bucketId: s.bucketId,
+        how: c.how as "bucket" | "everyday" | "negative",
+        fromBucketId: c.how === "bucket" ? c.fromBucketId : "",
+      };
+    });
+    run(async () => {
+      // Remembered first, so the bucket keeps its default even if the settle
+      // is then refused for another reason.
+      for (const c of cover) {
+        if (!choices[c.bucketId].remember) continue;
+        await ledger.apply({
+          op: "set",
+          kind: "bucket",
+          id: c.bucketId,
+          record: { whenShort: c.how, coverBucketId: c.fromBucketId },
+        });
+      }
+      await ledger.apply({ op: "reconcile-settle", id: record.id, cover });
+    });
   }
+
+  /// Buckets the open statements together need more from than they hold.
+  const overdrawn = $derived(buckets.filter((b) => b.committedShort !== null));
 
   const question = $derived.by(() => {
     if (!confirming) return "";
@@ -137,6 +189,24 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 
+{#if overdrawn.length > 0}
+  <div class="warn-box">
+    <p>The open statements together need more than these buckets hold:</p>
+    <ul class="short-list">
+      {#each overdrawn as b (b.id)}
+        <li>
+          <strong>{b.name}</strong>: {money(b.committed)} across open statements · holds
+          {money(b.cash)} · <span class="neg">{money(b.committedShort)} short</span>
+          {#if b.whenShort === "bucket"} · the rest will come from {b.coverBucketName}
+          {:else if b.whenShort === "everyday"} · the rest will be everyday spending
+          {:else if b.whenShort === "negative"} · it will go below zero
+          {:else} · you will be asked when settling{/if}
+        </li>
+      {/each}
+    </ul>
+  </div>
+{/if}
+
 {#if importing}
   <ImportPanel record={importing} {buckets} {members} {onchanged} onclose={close} />
 {/if}
@@ -158,8 +228,13 @@
 {#if confirming}
   <div class="warn-box">
     <p class="confirm-text">{question}</p>
+    {#if confirming.action === "settle"}
+      {#each confirming.record.shortfalls as s (s.bucketId)}
+        <ShortfallChoice short={s} {buckets} bind:choice={choices[s.bucketId]} />
+      {/each}
+    {/if}
     <div class="actions">
-      <button disabled={busy} onclick={confirmed}>
+      <button disabled={busy || !coversChosen} onclick={confirmed}>
         {confirming.action === "settle"
           ? "Settle"
           : confirming.action === "undo"
@@ -194,6 +269,11 @@
           {#if record.cardAccountName} · {record.cardAccountName}{/if}
           {#if record.settledAt} · settled {when(record.settledAt)}{/if}
         </div>
+        {#each record.shortfalls as s (s.bucketId)}
+          <div class="row-meta warn-text">
+            {s.bucketName} holds {money(s.holds)} of the {money(s.needs)} this takes
+          </div>
+        {/each}
       </div>
       <span class="row-amount" class:neg={record.status !== "settled"}>
         {money(record.balance)}
@@ -215,7 +295,7 @@
         {:else}
           <button
             class="bare"
-            onclick={() => { close(); confirming = { record, action: "settle" }; }}
+            onclick={() => askSettle(record)}
             disabled={busy || !ready(record)}
             title={ready(record) ? "Settle" : "The charges must add up to the balance first"}
             >Settle</button
@@ -279,5 +359,9 @@
     margin: 0 0 0.4rem 1.5rem;
     padding-left: 0.6rem;
     border-left: 1px solid var(--hairline);
+  }
+  .short-list {
+    margin: 0.2rem 0 0;
+    padding-left: 1.2rem;
   }
 </style>

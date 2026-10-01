@@ -36,6 +36,11 @@ export interface BucketView {
   locked: boolean;
   fundedMonthly: string;
   fundedBy: string[];
+  committed: string;
+  committedShort: string | null;
+  whenShort: "" | "bucket" | "everyday" | "negative";
+  coverBucketId: string;
+  coverBucketName: string;
 }
 
 export interface IncomeView {
@@ -145,6 +150,24 @@ export interface ReconciliationView {
   lines: ReconLineView[];
   linesTotal: string;
   unaccounted: string;
+  shortfalls: ShortView[];
+}
+
+export interface ShortView {
+  bucketId: string;
+  bucketName: string;
+  needs: string;
+  holds: string;
+  short: string;
+  whenShort: "" | "bucket" | "everyday" | "negative";
+  coverBucketId: string;
+}
+
+/** How one short bucket is covered when a statement is settled. */
+export interface Cover {
+  bucketId: string;
+  how: "bucket" | "everyday" | "negative";
+  fromBucketId: string;
 }
 
 export interface EarnerView {
@@ -553,7 +576,7 @@ export type Op =
   | { op: "retirement-accrue"; id: string }
   | { op: "reconcile-set"; id: string; record: Record<string, unknown> }
   | { op: "reconcile-delete"; id: string }
-  | { op: "reconcile-settle"; id: string }
+  | { op: "reconcile-settle"; id: string; cover?: Cover[] }
   | { op: "reconcile-undo"; id: string }
   | { op: "reconcile-import"; id: string; lines: Record<string, unknown>[] }
   | { op: "template-activate"; id: string; keepCurrent: boolean }

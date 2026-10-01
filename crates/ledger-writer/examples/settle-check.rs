@@ -23,11 +23,17 @@ fn main() {
         let (first, second) = if rec.status == "settled" {
             (
                 Op::ReconcileUndo { id: rec.id.clone() },
-                Op::ReconcileSettle { id: rec.id.clone() },
+                Op::ReconcileSettle {
+                    id: rec.id.clone(),
+                    cover: Vec::new(),
+                },
             )
         } else {
             (
-                Op::ReconcileSettle { id: rec.id.clone() },
+                Op::ReconcileSettle {
+                    id: rec.id.clone(),
+                    cover: Vec::new(),
+                },
                 Op::ReconcileUndo { id: rec.id.clone() },
             )
         };

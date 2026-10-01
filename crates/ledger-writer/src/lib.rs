@@ -180,6 +180,11 @@ pub enum Op {
     /// Pay the statement: draw from buckets and accounts, pay down the card.
     ReconcileSettle {
         id: String,
+        /// How to cover a bucket that holds less than this statement takes
+        /// from it. A bucket not named here uses its own default, and with
+        /// neither the settle is refused before anything moves.
+        #[serde(default)]
+        cover: Vec<reconcile::Cover>,
     },
     /// Return exactly what the settle moved, and reopen the statement.
     ReconcileUndo {
@@ -258,7 +263,7 @@ impl Writer {
             Op::ReconcileSet { id, record } => self.reconcile_set(ledger, id, record)?,
             Op::ReconcileDelete { id } => self.reconcile_delete(ledger, id)?,
             Op::ReconcileImport { id, lines } => self.reconcile_import(ledger, id, lines)?,
-            Op::ReconcileSettle { id } => self.settle(ledger, id)?,
+            Op::ReconcileSettle { id, cover } => self.settle(ledger, id, cover)?,
             Op::ReconcileUndo { id } => self.undo(ledger, id)?,
             Op::TemplateActivate { id, keep_current } => {
                 self.activate(ledger, id, *keep_current)?
@@ -355,6 +360,14 @@ impl Writer {
             }
             Kind::Bucket => {
                 let record = clean::bucket(from_json(&merged)?, keep)?;
+                if !record.cover_bucket_id.is_empty()
+                    && (record.cover_bucket_id == record.id
+                        || ledger.bucket(&record.cover_bucket_id).is_none())
+                {
+                    return Err(WriteError::Refused(
+                        "choose another bucket to cover this one when it runs short".into(),
+                    ));
+                }
                 let name = record.name.clone();
                 (store(&mut ledger.buckets, record, |a| &a.id)?, name)
             }
@@ -455,7 +468,15 @@ impl Writer {
         for (index, delta) in targets {
             let bucket = &mut ledger.buckets[index];
             let before = bucket.current_total;
-            let after = (before + delta).floor_at_zero();
+            // Never below zero, and never lower than a bucket already overdrawn
+            // by a settle: money added fills it back up, and nothing can be
+            // spent from it until it is above zero again.
+            let floor = if before.is_negative() {
+                before
+            } else {
+                Money::ZERO
+            };
+            let after = (before + delta).max(floor);
             bucket.current_total = after;
             net += after - before;
             if changes.len() < caps::CHANGES {
@@ -832,6 +853,13 @@ fn unlink(ledger: &mut Ledger, kind: Kind, id: &str) {
             for goal in ledger.goals.iter_mut() {
                 if goal.bucket_id == id {
                     goal.bucket_id.clear();
+                }
+            }
+            // A bucket that was covered by this one goes back to asking.
+            for bucket in ledger.buckets.iter_mut() {
+                if bucket.cover_bucket_id == id {
+                    bucket.cover_bucket_id.clear();
+                    bucket.when_short.clear();
                 }
             }
             for account in ledger.accounts.iter_mut() {

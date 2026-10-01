@@ -10,6 +10,14 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Payday buttons on the Savings page: "Add all" adds one paycheck of an
+  earner's contributions to every bucket they fund, with an Undo.
+- A warning when open statements together need more from a bucket than it
+  holds. Settling one that is short asks where the rest comes from: another
+  bucket, everyday spending, or letting the bucket go below zero. Each bucket
+  can remember its answer.
+
 ## [0.2.5] - 2026-09-30
 
 ### Added

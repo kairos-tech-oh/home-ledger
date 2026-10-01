@@ -9,6 +9,18 @@ use ledger_domain::text::{NAME_MAX, plain, valid_id};
 use ledger_domain::{Ledger, Money};
 use serde_json::Value;
 
+/// How one short bucket is covered when a statement is settled.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Cover {
+    /// The bucket that is short.
+    pub bucket_id: String,
+    /// "bucket", "everyday" or "negative".
+    pub how: String,
+    /// With "bucket", where the rest comes from.
+    pub from_bucket_id: String,
+}
+
 fn refuse<T>(message: impl Into<String>) -> Result<T, WriteError> {
     Err(WriteError::Refused(message.into()))
 }
@@ -263,7 +275,12 @@ impl Writer {
         ))
     }
 
-    pub(crate) fn settle(&self, ledger: &mut Ledger, id: &str) -> Result<AuditEntry, WriteError> {
+    pub(crate) fn settle(
+        &self,
+        ledger: &mut Ledger,
+        id: &str,
+        cover: &[Cover],
+    ) -> Result<AuditEntry, WriteError> {
         let Some(i) = position(&ledger.reconciliations, &valid_id(id)) else {
             return Err(WriteError::Missing("no such reconciliation".into()));
         };
@@ -293,21 +310,86 @@ impl Writer {
             }
         }
 
-        // Every check runs here, before anything moves.
-        let mut bucket_moves = Vec::new();
+        // Every check runs here, before anything moves. A bucket holding less
+        // than its lines take is covered as asked, or by its own default.
+        let mut bucket_moves: Vec<(usize, Money)> = Vec::new();
+        let mut may_go_negative: Vec<usize> = Vec::new();
+        fn draw(moves: &mut Vec<(usize, Money)>, index: usize, amount: Money) {
+            if amount <= Money::ZERO {
+                return;
+            }
+            match moves.iter_mut().find(|(i, _)| *i == index) {
+                Some(row) => row.1 += amount,
+                None => moves.push((index, amount)),
+            }
+        }
         for (bucket_id, amount) in &by_bucket {
             let Some(b) = ledger.buckets.iter().position(|b| &b.id == bucket_id) else {
                 return refuse("a line points at a bucket that no longer exists");
             };
-            // Clamping at zero would lose the difference and break undo.
-            let held = ledger.buckets[b].current_total;
-            if held < *amount {
+            let bucket = &ledger.buckets[b];
+            let held = bucket.current_total.floor_at_zero();
+            if held >= *amount {
+                draw(&mut bucket_moves, b, *amount);
+                continue;
+            }
+            let short = *amount - held;
+            let asked = cover.iter().find(|c| &c.bucket_id == bucket_id);
+            let how = asked
+                .map(|c| c.how.as_str())
+                .unwrap_or(bucket.when_short.as_str());
+            match how {
+                "bucket" => {
+                    let from_id = asked
+                        .map(|c| c.from_bucket_id.as_str())
+                        .filter(|f| !f.is_empty())
+                        .unwrap_or(bucket.cover_bucket_id.as_str());
+                    let Some(f) = ledger
+                        .buckets
+                        .iter()
+                        .position(|x| x.id == from_id && x.id != *bucket_id)
+                    else {
+                        return refuse(format!(
+                            "choose the bucket the other {short} for {} comes from",
+                            bucket.name
+                        ));
+                    };
+                    if ledger.buckets[f].locked {
+                        return refuse(format!(
+                            "{} is locked, so it cannot cover {}",
+                            ledger.buckets[f].name, bucket.name
+                        ));
+                    }
+                    draw(&mut bucket_moves, b, held);
+                    draw(&mut bucket_moves, f, short);
+                }
+                "everyday" => {
+                    draw(&mut bucket_moves, b, held);
+                    spend += short;
+                }
+                "negative" => {
+                    draw(&mut bucket_moves, b, *amount);
+                    may_go_negative.push(b);
+                }
+                _ => {
+                    return refuse(format!(
+                        "{} holds {held} but this takes {amount}; choose where the other {short} comes from",
+                        bucket.name
+                    ));
+                }
+            }
+        }
+        // One bucket can be both short itself and the cover for another, so
+        // what each gives up is checked once, in total.
+        for (b, total) in &bucket_moves {
+            let bucket = &ledger.buckets[*b];
+            let held = bucket.current_total.floor_at_zero();
+            if !may_go_negative.contains(b) && *total > held {
                 return refuse(format!(
-                    "{} holds {held} but this takes {amount}",
-                    ledger.buckets[b].name
+                    "{} holds {held} but would give up {total}",
+                    bucket.name
                 ));
             }
-            bucket_moves.push((b, *amount));
         }
 
         let mut account_moves: Vec<(usize, Money)> = Vec::new();
@@ -318,7 +400,9 @@ impl Writer {
             }
         }
         if rec.adjust_accounts {
-            let taken: Money = by_bucket.iter().map(|(_, a)| *a).sum();
+            // What actually came out of buckets: a shortfall charged to
+            // everyday spending comes out of the spending account instead.
+            let taken: Money = bucket_moves.iter().map(|(_, a)| *a).sum();
             for (source, amount, what) in [
                 (&rec.bucket_source_id, taken, "bucket money"),
                 (&rec.spend_source_id, spend, "spending"),
@@ -529,7 +613,13 @@ mod tests {
     }
 
     fn settle(ledger: &mut Ledger, id: &str) -> Result<(), WriteError> {
-        apply(ledger, Op::ReconcileSettle { id: id.into() })
+        apply(
+            ledger,
+            Op::ReconcileSettle {
+                id: id.into(),
+                cover: Vec::new(),
+            },
+        )
     }
 
     fn undo(ledger: &mut Ledger, id: &str) -> Result<(), WriteError> {
@@ -966,5 +1056,300 @@ mod import_tests {
             json!({ "op": "reconcile-import", "id": id, "lines": [] }),
         );
         assert!(matches!(got, Err(WriteError::Unchanged(_))));
+    }
+}
+
+#[cfg(test)]
+mod cover_tests {
+    use super::Cover;
+    use crate::{Kind, Op, WriteError, Writer};
+    use ledger_domain::{Ledger, Money};
+    use serde_json::{Value, json};
+
+    struct Setup {
+        ledger: Ledger,
+        groceries: String,
+        overflow: String,
+        statement: String,
+    }
+
+    fn apply(ledger: &mut Ledger, op: Op) -> Result<(), WriteError> {
+        Writer::new("test").apply(ledger, &op).map(|_| ())
+    }
+
+    fn make(ledger: &mut Ledger, kind: Kind, record: Value) -> String {
+        apply(
+            ledger,
+            Op::Set {
+                kind,
+                id: String::new(),
+                record,
+            },
+        )
+        .unwrap();
+        match kind {
+            Kind::Account => ledger.accounts.last().unwrap().id.clone(),
+            _ => ledger.buckets.last().unwrap().id.clone(),
+        }
+    }
+
+    /// Groceries holds 120 and a statement takes 180 from it; checking pays
+    /// everyday spending and savings pays bucket money.
+    fn setup(groceries: Value) -> Setup {
+        let mut ledger = Ledger::default();
+        let checking = make(
+            &mut ledger,
+            Kind::Account,
+            json!({ "name": "Checking", "type": "checking", "total": 1000 }),
+        );
+        let savings = make(
+            &mut ledger,
+            Kind::Account,
+            json!({ "name": "Savings", "type": "savings", "total": 5000 }),
+        );
+        let overflow = make(
+            &mut ledger,
+            Kind::Bucket,
+            json!({ "name": "Overflow", "currentTotal": 500 }),
+        );
+        let mut g = json!({ "name": "Groceries", "currentTotal": 120 });
+        for (k, v) in groceries.as_object().unwrap() {
+            g[k] = if v == "OVERFLOW" {
+                json!(overflow)
+            } else {
+                v.clone()
+            };
+        }
+        let groceries = make(&mut ledger, Kind::Bucket, g);
+        apply(
+            &mut ledger,
+            Op::ReconcileSet {
+                id: String::new(),
+                record: json!({ "card": "Sapphire", "balance": 200, "bucketSourceId": savings,
+                    "spendSourceId": checking, "lines": [
+                        { "label": "Costco", "amount": 180, "bucketId": groceries },
+                        { "label": "Gas", "amount": 20 } ] }),
+            },
+        )
+        .unwrap();
+        let statement = ledger.reconciliations[0].id.clone();
+        Setup {
+            ledger,
+            groceries,
+            overflow,
+            statement,
+        }
+    }
+
+    fn settle(s: &mut Setup, cover: Vec<Cover>) -> Result<(), WriteError> {
+        apply(
+            &mut s.ledger,
+            Op::ReconcileSettle {
+                id: s.statement.clone(),
+                cover,
+            },
+        )
+    }
+
+    fn adjust(s: &mut Setup, delta: &str) {
+        let op: Op = serde_json::from_value(json!({ "op": "bucket-adjust",
+            "adjustments": [{ "id": s.groceries, "delta": delta }] }))
+        .unwrap();
+        apply(&mut s.ledger, op).unwrap();
+    }
+
+    fn cash(ledger: &Ledger, name: &str) -> Money {
+        if let Some(b) = ledger.buckets.iter().find(|b| b.name == name) {
+            return b.current_total;
+        }
+        ledger
+            .accounts
+            .iter()
+            .find(|a| a.name == name)
+            .unwrap()
+            .total
+            .unwrap()
+    }
+
+    fn cover(s: &Setup, how: &str, from: &str) -> Vec<Cover> {
+        vec![Cover {
+            bucket_id: s.groceries.clone(),
+            how: how.into(),
+            from_bucket_id: from.into(),
+        }]
+    }
+
+    fn undo_restores(s: &mut Setup) {
+        apply(
+            &mut s.ledger,
+            Op::ReconcileUndo {
+                id: s.statement.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(120));
+        assert_eq!(cash(&s.ledger, "Overflow"), Money::from(500));
+        assert_eq!(cash(&s.ledger, "Checking"), Money::from(1000));
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(5000));
+    }
+
+    #[test]
+    fn with_no_instruction_and_no_default_a_short_bucket_still_stops_the_settle() {
+        let mut s = setup(json!({}));
+        let err = settle(&mut s, vec![]).unwrap_err().to_string();
+        assert!(err.contains("Groceries") && err.contains("60"), "{err}");
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(120));
+    }
+
+    #[test]
+    fn the_rest_can_come_from_another_bucket() {
+        let mut s = setup(json!({}));
+        let from = s.overflow.clone();
+        {
+            let c = cover(&s, "bucket", &from);
+            settle(&mut s, c)
+        }
+        .unwrap();
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::ZERO);
+        assert_eq!(cash(&s.ledger, "Overflow"), Money::from(440));
+        // All 180 was bucket money, so it all came out of savings.
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(4820));
+        assert_eq!(cash(&s.ledger, "Checking"), Money::from(980));
+        undo_restores(&mut s);
+    }
+
+    #[test]
+    fn the_rest_can_be_charged_to_everyday_spending() {
+        let mut s = setup(json!({}));
+        {
+            let c = cover(&s, "everyday", "");
+            settle(&mut s, c)
+        }
+        .unwrap();
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::ZERO);
+        // 120 from the bucket via savings; the other 60 joins the 20 of gas.
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(4880));
+        assert_eq!(cash(&s.ledger, "Checking"), Money::from(920));
+        undo_restores(&mut s);
+    }
+
+    #[test]
+    fn a_bucket_can_be_let_go_negative_and_money_added_fills_it_back() {
+        let mut s = setup(json!({}));
+        {
+            let c = cover(&s, "negative", "");
+            settle(&mut s, c)
+        }
+        .unwrap();
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(-60));
+        // Spending from it while it is below zero moves nothing...
+        adjust(&mut s, "-10");
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(-60));
+        // ...and money added fills it back up.
+        adjust(&mut s, "100");
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(40));
+    }
+
+    #[test]
+    fn a_negative_bucket_stays_negative_when_renamed_and_undo_restores_it() {
+        let mut s = setup(json!({}));
+        {
+            let c = cover(&s, "negative", "");
+            settle(&mut s, c)
+        }
+        .unwrap();
+        let g = s.groceries.clone();
+        apply(
+            &mut s.ledger,
+            Op::Set {
+                kind: Kind::Bucket,
+                id: g,
+                record: json!({ "name": "Groceries " }),
+            },
+        )
+        .unwrap();
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(-60));
+        undo_restores(&mut s);
+    }
+
+    #[test]
+    fn a_bucket_remembers_how_it_is_covered() {
+        let mut s = setup(json!({ "whenShort": "bucket", "coverBucketId": "OVERFLOW" }));
+        settle(&mut s, vec![]).unwrap();
+        assert_eq!(cash(&s.ledger, "Overflow"), Money::from(440));
+        undo_restores(&mut s);
+        // An instruction for this settle wins over the default.
+        {
+            let c = cover(&s, "everyday", "");
+            settle(&mut s, c)
+        }
+        .unwrap();
+        assert_eq!(cash(&s.ledger, "Overflow"), Money::from(500));
+        assert_eq!(cash(&s.ledger, "Checking"), Money::from(920));
+    }
+
+    #[test]
+    fn a_cover_that_is_itself_short_or_locked_is_refused() {
+        let mut s = setup(json!({}));
+        let o = s.overflow.clone();
+        let set = |s: &mut Setup, record: Value| {
+            apply(
+                &mut s.ledger,
+                Op::Set {
+                    kind: Kind::Bucket,
+                    id: o.clone(),
+                    record,
+                },
+            )
+            .unwrap()
+        };
+        set(&mut s, json!({ "currentTotal": 30 }));
+        assert!(
+            {
+                let c = cover(&s, "bucket", &o);
+                settle(&mut s, c)
+            }
+            .is_err()
+        );
+        set(&mut s, json!({ "currentTotal": 500, "locked": true }));
+        let err = {
+            let c = cover(&s, "bucket", &o);
+            settle(&mut s, c)
+        }
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("locked"), "{err}");
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(120));
+    }
+
+    #[test]
+    fn deleting_the_cover_bucket_sends_its_dependant_back_to_asking() {
+        let mut s = setup(json!({ "whenShort": "bucket", "coverBucketId": "OVERFLOW" }));
+        let o = s.overflow.clone();
+        apply(
+            &mut s.ledger,
+            Op::Delete {
+                kind: Kind::Bucket,
+                id: o,
+            },
+        )
+        .unwrap();
+        let g = s.ledger.bucket(&s.groceries).unwrap();
+        assert!(g.when_short.is_empty() && g.cover_bucket_id.is_empty());
+    }
+
+    #[test]
+    fn a_bucket_cannot_cover_itself() {
+        let mut s = setup(json!({}));
+        let g = s.groceries.clone();
+        let got = apply(
+            &mut s.ledger,
+            Op::Set {
+                kind: Kind::Bucket,
+                id: g.clone(),
+                record: json!({ "whenShort": "bucket", "coverBucketId": g }),
+            },
+        );
+        assert!(got.is_err());
     }
 }

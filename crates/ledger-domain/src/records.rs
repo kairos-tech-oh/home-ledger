@@ -269,14 +269,27 @@ pub struct Bucket {
     pub id: String,
     pub name: String,
     pub target_amount: Option<Money>,
-    /// Cash only, and never negative.
+    /// Cash only. Below zero only when a statement was settled with "let it go
+    /// negative": the bucket then owes that much until it is refilled.
     pub current_total: Money,
     pub linked_account_id: String,
     /// Says "do not move funds out" without depending on the bucket's name.
     #[serde(default)]
     pub locked: bool,
     pub notes: String,
+    /// What settling does when a statement needs more than this bucket holds:
+    /// empty to ask, or one of [`WHEN_SHORT`]. Absent rather than empty when
+    /// unset, so a document written before this field reads back unchanged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub when_short: String,
+    /// With `when_short` of "bucket", the bucket the rest comes from.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub cover_bucket_id: String,
 }
+
+/// How a shortfall is covered: from another bucket, from everyday spending,
+/// or by letting the bucket go below zero.
+pub const WHEN_SHORT: &[&str] = &["bucket", "everyday", "negative"];
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

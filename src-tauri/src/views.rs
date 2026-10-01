@@ -73,6 +73,14 @@ pub struct BucketView {
     /// What the budget puts in each month, and which lines do it.
     pub funded_monthly: String,
     pub funded_by: Vec<String>,
+    /// What open statements together take from this bucket, and how much of
+    /// that its cash cannot cover.
+    pub committed: String,
+    pub committed_short: Option<String>,
+    /// What settling does when it runs short; empty to ask.
+    pub when_short: String,
+    pub cover_bucket_id: String,
+    pub cover_bucket_name: String,
 }
 
 #[derive(Serialize)]
@@ -232,6 +240,21 @@ pub struct ReconciliationView {
     pub lines_total: String,
     /// Balance less the lines. Zero means it is ready to settle.
     pub unaccounted: String,
+    /// Buckets this statement alone needs more from than they hold.
+    pub shortfalls: Vec<ShortView>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortView {
+    pub bucket_id: String,
+    pub bucket_name: String,
+    pub needs: String,
+    pub holds: String,
+    pub short: String,
+    /// The bucket's own default for covering it, offered first.
+    pub when_short: String,
+    pub cover_bucket_id: String,
 }
 
 #[derive(Serialize)]
@@ -451,6 +474,7 @@ fn accounts_of(doc: &Ledger) -> Vec<AccountView> {
 }
 
 fn buckets_of(doc: &Ledger) -> Vec<BucketView> {
+    let committed = ledger_math::shortfall::committed(doc);
     doc.buckets
         .iter()
         .map(|bucket| {
@@ -477,6 +501,21 @@ fn buckets_of(doc: &Ledger) -> Vec<BucketView> {
                 locked: bucket.locked,
                 funded_monthly: amount(funding.monthly),
                 funded_by: funding.names,
+                committed: committed
+                    .iter()
+                    .find(|n| n.bucket_id == bucket.id)
+                    .map(|n| amount(n.needs))
+                    .unwrap_or_else(|| amount(Money::ZERO)),
+                committed_short: committed
+                    .iter()
+                    .find(|n| n.bucket_id == bucket.id && !n.short.is_zero())
+                    .map(|n| amount(n.short)),
+                when_short: bucket.when_short.clone(),
+                cover_bucket_id: bucket.cover_bucket_id.clone(),
+                cover_bucket_name: doc
+                    .bucket(&bucket.cover_bucket_id)
+                    .map(|b| b.name.clone())
+                    .unwrap_or_default(),
             }
         })
         .collect()
@@ -674,6 +713,29 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
                     .collect(),
                 lines_total: amount(lines_total),
                 unaccounted: amount(record.balance - lines_total),
+                shortfalls: if record.status == "settled" {
+                    Vec::new()
+                } else {
+                    ledger_math::shortfall::short_on(doc, record)
+                        .into_iter()
+                        .map(|n| {
+                            let bucket = doc.bucket(&n.bucket_id);
+                            ShortView {
+                                bucket_name: bucket.map(|b| b.name.clone()).unwrap_or_default(),
+                                when_short: bucket
+                                    .map(|b| b.when_short.clone())
+                                    .unwrap_or_default(),
+                                cover_bucket_id: bucket
+                                    .map(|b| b.cover_bucket_id.clone())
+                                    .unwrap_or_default(),
+                                bucket_id: n.bucket_id,
+                                needs: amount(n.needs),
+                                holds: amount(n.holds),
+                                short: amount(n.short),
+                            }
+                        })
+                        .collect()
+                },
             }
         })
         .collect()
