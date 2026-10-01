@@ -279,6 +279,23 @@ pub struct TemplateView {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaydayView {
+    pub owner: String,
+    /// One paycheck's worth across every bucket this earner funds.
+    pub total: String,
+    /// What to add to each bucket, ready to send as a bucket-adjust.
+    pub adjustments: Vec<AdjustmentView>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdjustmentView {
+    pub id: String,
+    pub delta: String,
+}
+
+#[derive(Serialize)]
 pub struct FixedTypes {
     pub budget: &'static [&'static str],
     pub investment: &'static [&'static str],
@@ -301,6 +318,8 @@ pub struct LedgerView {
     /// Family names to offer on a charge: this machine's list, income owners
     /// and names already used.
     pub members: Vec<String>,
+    /// Each earner's paycheck into the savings buckets, largest earner first.
+    pub paydays: Vec<PaydayView>,
     /// The Accounts page's section order as arranged; empty for the default.
     pub account_order: Vec<String>,
     /// Saved budgets, as stored: oldest first.
@@ -338,6 +357,21 @@ pub async fn ledger(state: State<'_, AppState>) -> Answer<LedgerView> {
         goal_totals: goal_totals_of(&doc),
         templates: templates_of(&doc),
         account_order: doc.account_order(),
+        paydays: ledger_math::payday::paydays(&doc)
+            .into_iter()
+            .map(|day| PaydayView {
+                owner: day.owner,
+                total: amount(day.total),
+                adjustments: day
+                    .contributions
+                    .into_iter()
+                    .map(|c| AdjustmentView {
+                        id: c.bucket_id,
+                        delta: amount(c.amount),
+                    })
+                    .collect(),
+            })
+            .collect(),
         members: ledger_math::spending::members(&doc, &state.family_members().await),
         budget_types: doc.budget_types.clone(),
         investment_types: doc.investment_types.clone(),

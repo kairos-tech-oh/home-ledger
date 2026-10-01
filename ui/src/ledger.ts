@@ -489,6 +489,12 @@ export interface ImportPreview {
   setAside: number;
 }
 
+export interface PaydayView {
+  owner: string;
+  total: string;
+  adjustments: { id: string; delta: string }[];
+}
+
 export interface LedgerView {
   accounts: AccountView[];
   buckets: BucketView[];
@@ -502,6 +508,7 @@ export interface LedgerView {
   goalTotals: GoalTotalsView;
   templates: TemplateView[];
   accountOrder: string[];
+  paydays: PaydayView[];
   members: string[];
   budgetTypes: string[];
   investmentTypes: string[];

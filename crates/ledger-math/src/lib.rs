@@ -9,6 +9,7 @@ mod goals;
 pub use goals::{GoalTotals, goal_progress, goal_saved, goal_totals, goals_in_order};
 pub mod calendar;
 pub mod dashboard;
+pub mod payday;
 pub mod planning;
 pub mod snapshots;
 pub mod spending;

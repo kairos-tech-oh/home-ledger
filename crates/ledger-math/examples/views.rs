@@ -92,6 +92,19 @@ fn main() {
         }
     }
 
+    println!("paydays");
+    for day in ledger_math::payday::paydays(&doc) {
+        println!(
+            "  {} total {} buckets {}",
+            day.owner,
+            f(day.total),
+            day.contributions.len()
+        );
+        for c in &day.contributions {
+            println!("    {} {}", short(&c.bucket_id), f(c.amount));
+        }
+    }
+
     println!("dashboard");
     let kinds: Vec<_> = dashboard::default_dashboard(&doc)
         .widgets

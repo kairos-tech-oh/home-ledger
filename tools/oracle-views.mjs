@@ -55,6 +55,14 @@ for (const period of ["1m", "3m", "1y", "all"]) {
   }
 }
 
+console.log("paydays");
+for (const share of M.ownerShares(d.income)) {
+  const deltas = M.contributionDeltas(share.owner, d.buckets, d.budget, M.ownerShares(d.income), 1);
+  if (!deltas.length) continue;
+  console.log(`  ${share.owner} total ${f(deltas.reduce((t, x) => t + x.delta, 0))} buckets ${deltas.length}`);
+  for (const x of deltas) console.log(`    ${short(x.id)} ${f(x.delta)}`);
+}
+
 console.log("dashboard");
 console.log(`  default ${M.defaultDashboard(d).widgets.map((w) => w.kind).join(",")}`);
 const c = M.creditRollup(d.accounts);

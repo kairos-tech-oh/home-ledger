@@ -1,8 +1,24 @@
 <script lang="ts">
-  import { ledger, money, type BucketView } from "./ledger";
+  import { ledger, money, type BucketView, type PaydayView } from "./ledger";
   import { largestFirst } from "./order";
 
-  let { buckets, onchanged }: { buckets: BucketView[]; onchanged: () => void } = $props();
+  let {
+    buckets,
+    paydays = [],
+    onchanged,
+  }: { buckets: BucketView[]; paydays?: PaydayView[]; onchanged: () => void } = $props();
+
+  // A payday adds one paycheck's worth to every bucket that earner funds, as
+  // one edit; its undo takes the same amounts back out.
+  function payday(day: PaydayView, undo: boolean) {
+    run(() =>
+      ledger.apply({
+        op: "bucket-adjust",
+        adjustments: day.adjustments.map((a) => ({ id: a.id, delta: undo ? `-${a.delta}` : a.delta })),
+        label: `${undo ? "Undo " : ""}${day.owner}'s payday`,
+      }),
+    );
+  }
 
   let adding = $state(false);
   let editing = $state<BucketView | null>(null);
@@ -154,6 +170,29 @@
     <div class="tile-note">a month from the budget</div>
   </article>
 </section>
+
+{#if paydays.length > 0}
+  <div class="paydays">
+    <span class="muted">Payday, one paycheck each:</span>
+    {#each paydays as day (day.owner)}
+      <span class="payday">
+        <button
+          onclick={() => payday(day, false)}
+          disabled={busy}
+          title="Add {money(day.total)} across the {day.adjustments.length} buckets {day.owner} funds"
+        >
+          Add all · {day.owner} {money(day.total)}
+        </button>
+        <button
+          class="bare"
+          onclick={() => payday(day, true)}
+          disabled={busy}
+          title="Take {day.owner}'s payday back out of those buckets">Undo</button
+        >
+      </span>
+    {/each}
+  </div>
+{/if}
 
 <div class="section-head">
   <h2>{buckets.length} buckets</h2>
@@ -354,5 +393,16 @@
     display: block;
     height: 100%;
     background: var(--positive);
+  }
+  .paydays {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+    margin: 0.75rem 0 0.25rem;
+  }
+  .payday {
+    display: inline-flex;
+    gap: 0.15rem;
   }
 </style>
