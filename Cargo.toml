@@ -43,3 +43,14 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# The key derivation is slow on purpose, and in an unoptimised development
+# build it would take tens of seconds to unlock. Always build it optimised.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+[profile.dev.package.chacha20poly1305]
+opt-level = 3

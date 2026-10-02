@@ -45,6 +45,7 @@ pub enum SetupError {
 }
 
 /// Where the app keeps its own files.
+#[derive(Clone, Debug)]
 pub struct Places {
     pub config_file: PathBuf,
     pub data_dir: PathBuf,
@@ -184,11 +185,13 @@ pub fn build_store(
 }
 
 /// Build the whole engine: the source of truth, its backups, and the outbox.
+/// Builds the engine with every store, and the outbox, sealed through `vault`.
 pub fn build_engine(
     config: &Config,
     places: &Places,
     secrets: &dyn Secrets,
     document: Arc<dyn Document>,
+    vault: Arc<ledger_store::Vault>,
 ) -> Result<Engine, SetupError> {
     let problems = config.problems();
     if !problems.is_empty() {
@@ -198,19 +201,19 @@ pub fn build_engine(
         return Err(SetupError::NotConfigured);
     };
 
-    let primary = build_store(first, secrets)?;
+    let primary = ledger_store::Sealed::wrap(build_store(first, secrets)?, vault.clone());
     let mut mirrors = Vec::new();
     for backup in config.backups() {
         // One unreachable backup must not stop the app starting; it shows as
         // unhealthy in settings instead.
         match build_store(backup, secrets) {
-            Ok(store) => mirrors.push(store),
+            Ok(store) => mirrors.push(ledger_store::Sealed::wrap(store, vault.clone())),
             Err(e) => tracing::warn!(store = %backup.label, error = %e, "backup not configured"),
         }
     }
 
     std::fs::create_dir_all(&places.data_dir)?;
-    let outbox = Outbox::new(places.outbox());
+    let outbox = Outbox::sealed(places.outbox(), vault);
 
     Ok(Engine::new(
         primary,
@@ -441,7 +444,14 @@ mod tests {
         let mut config = starting_config(&places, "Linux PC");
         config.stores.insert(0, s3_store("bucket"));
 
-        let engine = build_engine(&config, &places, &secrets, Arc::new(NoDocument)).expect("built");
+        let engine = build_engine(
+            &config,
+            &places,
+            &secrets,
+            Arc::new(NoDocument),
+            ledger_store::Vault::new(),
+        )
+        .expect("built");
         assert_eq!(engine.primary().kind(), StoreKind::S3);
     }
 
@@ -456,7 +466,14 @@ mod tests {
         let mut config = starting_config(&places, "Linux PC");
         config.stores.push(s3_store("no-key-for-this"));
 
-        let engine = build_engine(&config, &places, &secrets, Arc::new(NoDocument)).expect("built");
+        let engine = build_engine(
+            &config,
+            &places,
+            &secrets,
+            Arc::new(NoDocument),
+            ledger_store::Vault::new(),
+        )
+        .expect("built");
         assert_eq!(engine.primary().kind(), StoreKind::Local);
         assert_eq!(
             engine.status().await.len(),
@@ -488,6 +505,7 @@ mod tests {
             &places,
             &secrets,
             Arc::new(NoDocument),
+            ledger_store::Vault::new(),
         ));
         assert!(error.to_string().contains("cannot lock reliably"));
     }
@@ -503,6 +521,7 @@ mod tests {
             &places,
             &secrets,
             Arc::new(NoDocument),
+            ledger_store::Vault::new(),
         ));
         assert!(matches!(error, SetupError::NotConfigured));
     }

@@ -5,7 +5,7 @@
 //! ledger lives is an ordinary thing to do, not a restart.
 
 use ledger_config::{Config, Keychain, Places, Secrets, SetupError, build_engine, starting_config};
-use ledger_store::Engine;
+use ledger_store::{Engine, Vault};
 use ledger_writer::Writer;
 use std::sync::Arc;
 use tauri::{AppHandle, Runtime};
@@ -26,6 +26,27 @@ pub struct AppState {
     /// this session, but nothing is kept, and the UI has to say so rather
     /// than letting someone believe a key was saved.
     pub keychain_available: bool,
+    /// Seals and opens everything stored. One for the life of the app, so a
+    /// reconfiguration keeps the unlock.
+    pub vault: Arc<Vault>,
+}
+
+/// Where the data key is kept in the keychain.
+pub const DATA_KEY: &str = "data-key";
+
+/// The key this machine kept for the ledger sealed under `key_id`, if any.
+pub fn kept_key(secrets: &dyn Secrets, key_id: &str) -> Option<ledger_store::sealed::Key> {
+    match secrets.get(DATA_KEY).ok().flatten()? {
+        ledger_config::Secret::DataKey {
+            key_id: kept,
+            key,
+            envelope,
+        } if kept == key_id => {
+            let envelope = serde_json::from_str(&envelope).ok()?;
+            ledger_store::sealed::Key::import(&envelope, &key)
+        }
+        _ => None,
+    }
 }
 
 impl AppState {
@@ -87,7 +108,14 @@ impl AppState {
             places.save_config(&config)?;
         }
 
-        let live = build_live(&config, &places, secrets.as_ref())?;
+        // Encryption on: sealed from the start, with the kept key if there is
+        // one. Without it everything stays locked until the passphrase is given.
+        let vault = Vault::new();
+        if let Some(id) = &config.encryption_key_id {
+            vault.set(true, kept_key(secrets.as_ref(), id));
+        }
+
+        let live = build_live(&config, &places, secrets.as_ref(), &vault)?;
         tracing::info!(
             dir = %places.data_dir.display(),
             stores = config.stores.len(),
@@ -99,7 +127,16 @@ impl AppState {
             places,
             secrets,
             keychain_available,
+            vault,
         })
+    }
+
+    pub fn audit(&self) -> crate::audit::Audit {
+        crate::audit::Audit::sealed(&self.places.data_dir, self.vault.clone())
+    }
+
+    pub fn points(&self) -> crate::snapshots::LocalPoints {
+        crate::snapshots::LocalPoints::sealed(&self.places.data_dir, self.vault.clone())
     }
 
     pub async fn live(&self) -> RwLockReadGuard<'_, Live> {
@@ -113,7 +150,13 @@ impl AppState {
 
     pub async fn share_history(&self) {
         let (primary, install) = self.primary_and_install().await;
-        crate::audit::share(primary, install, self.places.data_dir.clone()).await;
+        crate::audit::share(
+            primary,
+            install,
+            self.places.data_dir.clone(),
+            self.vault.clone(),
+        )
+        .await;
     }
 
     pub async fn retirement_target_year(&self) -> Option<i32> {
@@ -149,7 +192,7 @@ impl AppState {
     /// not be saved, or the app fails to start next time and the person has to
     /// edit JSON to recover.
     pub async fn reconfigure(&self, config: Config) -> Result<(), SetupError> {
-        let rebuilt = build_live(&config, &self.places, self.secrets.as_ref())?;
+        let rebuilt = build_live(&config, &self.places, self.secrets.as_ref(), &self.vault)?;
         self.places.save_config(&config)?;
         *self.live.write().await = rebuilt;
         tracing::info!(stores = config.stores.len(), "configuration replaced");
@@ -157,9 +200,14 @@ impl AppState {
     }
 }
 
-fn build_live(config: &Config, places: &Places, secrets: &dyn Secrets) -> Result<Live, SetupError> {
+fn build_live(
+    config: &Config,
+    places: &Places,
+    secrets: &dyn Secrets,
+    vault: &Arc<Vault>,
+) -> Result<Live, SetupError> {
     let writer = Arc::new(Writer::new(&config.device));
-    let engine = build_engine(config, places, secrets, writer.clone())?;
+    let engine = build_engine(config, places, secrets, writer.clone(), vault.clone())?;
     Ok(Live {
         engine,
         writer,
@@ -244,9 +292,9 @@ mod tests {
         };
         let secrets = ledger_config::secrets::InMemory::default();
         let mut config = starting_config(&places, &device_name());
-        let before = build_live(&config, &places, &secrets).unwrap();
+        let before = build_live(&config, &places, &secrets, &Vault::new()).unwrap();
         config.device = machine_name(" Laptop ").unwrap();
-        let after = build_live(&config, &places, &secrets).unwrap();
+        let after = build_live(&config, &places, &secrets, &Vault::new()).unwrap();
 
         let op = ledger_writer::Op::TypeAdd {
             list: ledger_writer::TypeList::Budget,

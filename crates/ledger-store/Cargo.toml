@@ -18,6 +18,10 @@ uuid.workspace = true
 # tree for two HTTP verbs, and this is proven against a real bucket already.
 hmac = "0.12"
 sha2 = "0.10"
+# Encryption at rest: vetted RustCrypto implementations, nothing hand-rolled.
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+zeroize = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "json", "multipart"] }
 
 [dev-dependencies]

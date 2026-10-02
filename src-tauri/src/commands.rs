@@ -132,10 +132,7 @@ pub async fn apply_value(state: &AppState, op: Value) -> Answer<Option<Applied>>
     // Written after the edit is queued, so a refused edit records nothing.
     // A failure here is logged rather than raised: losing a line of history
     // is not a reason to tell someone their edit did not happen.
-    if let Err(e) = crate::audit::Audit::new(&state.places.data_dir)
-        .append(entry.clone())
-        .await
-    {
+    if let Err(e) = state.audit().append(entry.clone()).await {
         tracing::warn!(error = %e, "the change was made but not recorded in history");
     }
     if !matches!(sync, SyncState::Behind { .. }) {
@@ -143,6 +140,7 @@ pub async fn apply_value(state: &AppState, op: Value) -> Answer<Option<Applied>>
             live.engine.primary().clone(),
             live.config.install.clone(),
             state.places.data_dir.clone(),
+            state.vault.clone(),
         ));
     }
 

@@ -130,7 +130,7 @@ pub async fn import(state: &AppState, preview: &Preview) -> Result<(usize, Publi
             caps::AUDIT
         ));
     }
-    let local = Audit::new(&state.places.data_dir);
+    let local = state.audit();
     let added = local
         .absorb(&preview.entries)
         .await

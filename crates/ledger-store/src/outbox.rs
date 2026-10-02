@@ -3,9 +3,12 @@
 //! Durable by construction: an entry is on disk before the caller is told the
 //! edit succeeded, so closing the laptop mid-edit loses nothing.
 
+use crate::sealed::Vault;
+use crate::store::StoreError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// One edit, as the writer would apply it. Kept opaque here — the store layer
 /// moves ops around and never interprets them.
@@ -22,18 +25,50 @@ pub struct PendingOp {
 pub enum OutboxError {
     #[error("outbox is unreadable: {0}")]
     Corrupt(String),
+    /// Encrypted, and this machine has not been unlocked.
+    #[error("the queued edits are encrypted; enter the passphrase to unlock them")]
+    Locked,
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
 
 /// A file holding the ops not yet landed on the primary, oldest first.
+/// Sealed like everything else when encryption is on: a queued edit holds
+/// the same amounts the ledger does.
 pub struct Outbox {
     path: PathBuf,
+    vault: Arc<Vault>,
+}
+
+fn sealing(e: StoreError) -> OutboxError {
+    match e {
+        StoreError::Locked => OutboxError::Locked,
+        other => OutboxError::Corrupt(other.to_string()),
+    }
 }
 
 impl Outbox {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self::sealed(path, Vault::new())
+    }
+
+    pub fn sealed(path: impl Into<PathBuf>, vault: Arc<Vault>) -> Self {
+        Self {
+            path: path.into(),
+            vault,
+        }
+    }
+
+    /// Writes the queue back as it is, so it is sealed (or unsealed) to match
+    /// whether encryption is now on.
+    pub async fn reseal(&self) -> Result<(), OutboxError> {
+        match tokio::fs::metadata(&self.path).await {
+            Ok(_) => {
+                let ops = self.read().await?;
+                self.write(&ops).await
+            }
+            Err(_) => Ok(()),
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -43,7 +78,8 @@ impl Outbox {
     pub async fn read(&self) -> Result<Vec<PendingOp>, OutboxError> {
         match tokio::fs::read(&self.path).await {
             Ok(bytes) => {
-                serde_json::from_slice(&bytes).map_err(|e| OutboxError::Corrupt(e.to_string()))
+                let plain = self.vault.open(&bytes).map_err(sealing)?;
+                serde_json::from_slice(&plain).map_err(|e| OutboxError::Corrupt(e.to_string()))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
             Err(e) => Err(OutboxError::Io(e)),
@@ -62,7 +98,8 @@ impl Outbox {
         if let Some(dir) = self.path.parent() {
             tokio::fs::create_dir_all(dir).await?;
         }
-        let body = serde_json::to_vec(ops).map_err(|e| OutboxError::Corrupt(e.to_string()))?;
+        let plain = serde_json::to_vec(ops).map_err(|e| OutboxError::Corrupt(e.to_string()))?;
+        let body = self.vault.seal(&plain).map_err(sealing)?;
         let temp = self
             .path
             .with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));

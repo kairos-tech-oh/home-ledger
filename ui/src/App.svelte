@@ -15,6 +15,8 @@
   import Dashboard from "./Dashboard.svelte";
   import NavMenu from "./NavMenu.svelte";
   import UpdateBanner from "./UpdateBanner.svelte";
+  import UnlockScreen from "./UnlockScreen.svelte";
+  import { encryption } from "./encryption";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
 
@@ -85,10 +87,14 @@
     }
   });
 
+  // The ledger is encrypted and this machine does not hold the key yet.
+  let locked = $state(false);
+
   async function load() {
     busy = true;
     error = "";
     try {
+      locked = false;
       [overview, stores, sync, setup, view] = await Promise.all([
         api.overview(),
         api.stores(),
@@ -99,7 +105,16 @@
       revision += 1;
       if (setup && !setup.setupComplete) tab = "storage";
     } catch (e) {
-      error = String(e);
+      // A read refused because the ledger is encrypted and this machine has
+      // no key: offer to unlock rather than showing an error.
+      if (String(e).includes("encrypted")) {
+        try {
+          locked = (await encryption.status()).needsUnlock;
+        } catch {
+          // Fall through to showing the error.
+        }
+      }
+      if (!locked) error = String(e);
     } finally {
       busy = false;
     }
@@ -197,7 +212,7 @@
   </div>
 </header>
 
-{#if !firstRun}
+{#if !firstRun && !locked}
   <div class="nav-row">
     <NavMenu {groups} current={tab} onchoose={(page) => (tab = page)} />
   </div>
@@ -205,6 +220,9 @@
 
 <main class="page">
   <UpdateBanner />
+  {#if locked}
+    <UnlockScreen onunlocked={load} />
+  {:else}
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if overview?.stale}
@@ -275,6 +293,7 @@
     <Planning {revision} />
   {:else if tab === "history"}
     <History />
+  {/if}
   {/if}
 </main>
 

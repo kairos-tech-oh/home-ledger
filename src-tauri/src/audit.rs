@@ -11,25 +11,50 @@ const KEEP_DAYS: u64 = 60;
 
 pub struct Audit {
     path: PathBuf,
+    vault: Arc<ledger_store::Vault>,
 }
 
 impl Audit {
+    /// Unsealed: for tests and tools that never turn encryption on.
     pub fn new(data_dir: &Path) -> Self {
+        Self::sealed(data_dir, ledger_store::Vault::new())
+    }
+
+    pub fn sealed(data_dir: &Path, vault: Arc<ledger_store::Vault>) -> Self {
         Self {
             path: data_dir.join("audit.json"),
+            vault,
         }
     }
 
+    /// For showing: anything unreadable, locked included, shows as nothing.
     pub async fn read(&self) -> Vec<AuditEntry> {
-        match tokio::fs::read(&self.path).await {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-            // No history yet is not a fault; it is a ledger nobody has edited.
-            Err(_) => Vec::new(),
+        self.read_strict().await.unwrap_or_default()
+    }
+
+    /// For changing: a damaged file reads as empty and is started again, but
+    /// a locked one is refused, so it is never overwritten unread.
+    async fn read_strict(&self) -> std::io::Result<Vec<AuditEntry>> {
+        Ok(
+            match crate::sealed_file::read(&self.path, &self.vault).await? {
+                Some(plain) => serde_json::from_slice(&plain).unwrap_or_default(),
+                // No history yet is not a fault; it is a ledger nobody has edited.
+                None => Vec::new(),
+            },
+        )
+    }
+
+    /// Writes the file back as it is, sealed or not to match the vault.
+    pub async fn reseal(&self) -> std::io::Result<()> {
+        if tokio::fs::metadata(&self.path).await.is_ok() {
+            let entries = self.read_strict().await?;
+            self.write(&entries).await?;
         }
+        Ok(())
     }
 
     pub async fn absorb(&self, incoming: &[AuditEntry]) -> std::io::Result<usize> {
-        let entries = self.read().await;
+        let entries = self.read_strict().await?;
         let before = entries.len();
         let merged = union([entries.as_slice(), incoming]);
         let added = merged.len() - before;
@@ -40,16 +65,8 @@ impl Audit {
     }
 
     async fn write(&self, entries: &[AuditEntry]) -> std::io::Result<()> {
-        if let Some(dir) = self.path.parent() {
-            tokio::fs::create_dir_all(dir).await?;
-        }
         let body = serde_json::to_vec(entries)?;
-        let temp = self
-            .path
-            .with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
-        tokio::fs::write(&temp, &body).await?;
-        tokio::fs::rename(&temp, &self.path).await?;
-        Ok(())
+        crate::sealed_file::write(&self.path, &self.vault, &body).await
     }
 
     /// Append one entry, oldest first, trimmed to the caps.
@@ -58,7 +75,7 @@ impl Audit {
     /// record of record — so an unreadable one is started again rather than
     /// refused.
     pub async fn append(&self, entry: AuditEntry) -> std::io::Result<()> {
-        let mut entries = self.read().await;
+        let mut entries = self.read_strict().await?;
         entries.push(entry);
         self.write(&trim(entries, &now_iso())).await
     }
@@ -126,8 +143,13 @@ pub async fn publish(
     Err(StoreError::Conflict)
 }
 
-pub async fn share(primary: Arc<dyn Store>, install: String, data_dir: PathBuf) {
-    let local = Audit::new(&data_dir).read().await;
+pub async fn share(
+    primary: Arc<dyn Store>,
+    install: String,
+    data_dir: PathBuf,
+    vault: Arc<ledger_store::Vault>,
+) {
+    let local = Audit::sealed(&data_dir, vault).read().await;
     match publish(primary.as_ref(), &install, &local).await {
         Ok(Publish::Landed(count)) => tracing::info!(count, "history published"),
         Ok(_) => {}

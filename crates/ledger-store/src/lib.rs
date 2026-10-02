@@ -10,6 +10,7 @@ pub mod local;
 pub mod oauth;
 pub mod outbox;
 pub mod s3;
+pub mod sealed;
 pub mod sigv4;
 pub mod store;
 
@@ -19,6 +20,7 @@ pub use ledger_domain::Relation;
 pub use local::LocalStore;
 pub use outbox::{Outbox, OutboxError, PendingOp};
 pub use s3::{S3Config, S3Store};
+pub use sealed::{Sealed, Vault};
 pub use sigv4::Credentials;
 pub use store::{
     Capabilities, Cas, Expect, Health, Shelf, Snapshot, Store, StoreError, StoreId, StoreKind,

@@ -10,6 +10,12 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Encryption, turned on in Settings with a passphrase. The ledger on every
+  store, its shared history and snapshots, and the local files holding
+  balances are encrypted; a recovery code opens them if the passphrase is
+  forgotten, and each computer asks once then keeps the key in its keychain.
+
 ## [0.2.6] - 2026-09-30
 
 ### Added

@@ -117,6 +117,34 @@ impl Engine {
         &self.primary
     }
 
+    /// Rewrites every copy, and the queued edits, as they are. Through sealed
+    /// stores that seals them, or unseals them, to match whether encryption
+    /// is now on. Each write is conditional on the version just read, so an
+    /// edit landing in between is never overwritten.
+    ///
+    /// A mirror that cannot be reached is skipped and reported; it is sealed
+    /// the next time it is refreshed.
+    pub async fn rewrite_all(&self) -> Result<Vec<String>, EngineError> {
+        let mut skipped = Vec::new();
+        for (i, store) in std::iter::once(&self.primary)
+            .chain(&self.mirrors)
+            .enumerate()
+        {
+            match store.load().await {
+                Ok(Some(found)) => {
+                    store
+                        .save(&found.body, Expect::Version(found.version))
+                        .await?;
+                }
+                Ok(None) => {}
+                Err(e) if i > 0 && e.is_transient() => skipped.push(format!("{}: {e}", store.id())),
+                Err(e) => return Err(EngineError::Store(e)),
+            }
+        }
+        self.outbox.reseal().await?;
+        Ok(skipped)
+    }
+
     /// Health of every configured store, for the settings screen.
     pub async fn status(&self) -> Vec<StoreStatus> {
         let mut out = Vec::with_capacity(1 + self.mirrors.len());

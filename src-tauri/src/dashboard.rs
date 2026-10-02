@@ -220,9 +220,7 @@ pub async fn dashboard(
         Some(s) => ledger_writer::read(&s.body)?,
         None => Ledger::default(),
     };
-    let points = crate::snapshots::LocalPoints::new(&state.places.data_dir)
-        .read()
-        .await;
+    let points = state.points().read().await;
     Ok(dashboard_view(&doc, &points, today, offset_minutes))
 }
 

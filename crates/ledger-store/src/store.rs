@@ -122,6 +122,9 @@ pub enum StoreError {
     TooLarge { size: u64, limit: u64 },
     #[error("stored document is not readable: {0}")]
     Corrupt(String),
+    /// The data is encrypted and this machine has not been unlocked.
+    #[error("the ledger is encrypted; enter the passphrase to unlock it")]
+    Locked,
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

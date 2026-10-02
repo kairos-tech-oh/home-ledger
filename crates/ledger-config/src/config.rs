@@ -162,6 +162,10 @@ pub struct Config {
     pub family_members: Vec<String>,
     #[serde(default)]
     pub family_members_seeded: bool,
+    /// Set while encryption is on: the id of the data key everything is
+    /// sealed under. The key itself is in the keychain, never here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encryption_key_id: Option<String>,
     /// Anything a newer build added, kept so an older one cannot delete it.
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
@@ -193,6 +197,7 @@ impl Default for Config {
             opacity: default_opacity(),
             family_members: Vec::new(),
             family_members_seeded: false,
+            encryption_key_id: None,
             unknown: BTreeMap::new(),
         }
     }

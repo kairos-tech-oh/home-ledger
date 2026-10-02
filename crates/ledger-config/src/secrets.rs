@@ -42,6 +42,16 @@ pub enum Secret {
     OAuth { refresh_token: String },
     /// A bare key for a service that is not a store, such as a quote feed.
     ApiKey { key: String },
+    /// The data key that opens the encrypted ledger, kept so this machine is
+    /// not asked for the passphrase again. Named by its id, so a key for an
+    /// older ledger is never used on a newer one.
+    DataKey {
+        key_id: String,
+        key: String,
+        /// The key wrapped under the passphrase and recovery code. Not secret,
+        /// but kept with the key so this machine can seal what it writes.
+        envelope: String,
+    },
 }
 
 /// Somewhere credentials can be kept and fetched by store id.

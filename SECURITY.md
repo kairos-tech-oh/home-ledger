@@ -48,6 +48,10 @@ credentials, that they should not be able to. For example:
   content security policy.
 - **Sign-in:** the Google Drive OAuth flow accepting a code meant for another
   app or session.
+- **Encryption:** with encryption on, anything with balances written
+  unencrypted (a store, the outbox, the local history or snapshots), the data
+  key or passphrase reaching `config.json`, a log or a store, or a sealed
+  file that can be altered without failing to open.
 
 ## What is not in scope
 
@@ -56,13 +60,22 @@ credentials, that they should not be able to. For example:
 - Someone who already controls the user's account on the machine. They can
   read the keychain and the files as that user; Home Ledger cannot defend
   against its own user.
-- The ledger being readable on disk. It is stored as plain JSON by design at
-  present, protected by the operating system's file permissions and, in the
-  cloud, by the provider's own access control and encryption.
+- The ledger being readable on disk while encryption is off, which is the
+  default. It is then protected only by the operating system's file
+  permissions and, in the cloud, by the provider's own access control.
+- Copies saved before encryption was turned on that a store kept as old
+  versions (S3 bucket versioning, Drive revisions). Removing those is the
+  store's business.
 - Problems in third-party services themselves (AWS, Google, Finnhub, Yahoo).
 
 ## How the app is built to limit damage
 
+- With encryption on, everything holding balances is sealed with
+  XChaCha20-Poly1305 before it leaves the app: the ledger on every store, the
+  history and snapshot objects shared through it, and the local outbox,
+  history and snapshot files. The data key is wrapped under the passphrase and
+  under a recovery code, both stretched with Argon2id, and each machine keeps
+  the unwrapped key only in its OS keychain. See docs/STORAGE.md.
 - Secrets live in the OS keychain, or are read at request time from
   `~/.aws/credentials`, and never enter the stored configuration; a test and a
   kb claim hold that in place.

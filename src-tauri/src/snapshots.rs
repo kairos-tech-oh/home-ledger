@@ -46,28 +46,51 @@ fn body_of(points: &[Point]) -> Result<Vec<u8>, serde_json::Error> {
 
 pub struct LocalPoints {
     path: PathBuf,
+    vault: Arc<ledger_store::Vault>,
 }
 
 impl LocalPoints {
+    /// Unsealed: for tests.
     pub fn new(data_dir: &Path) -> Self {
+        Self::sealed(data_dir, ledger_store::Vault::new())
+    }
+
+    pub fn sealed(data_dir: &Path, vault: Arc<ledger_store::Vault>) -> Self {
         Self {
             path: data_dir.join("snapshots.json"),
+            vault,
         }
     }
 
-    /// History is valuable but it is not the record of record: a damaged file
-    /// reads as empty rather than blocking anything.
+    /// History is valuable but it is not the record of record: a damaged or
+    /// locked file reads as empty for showing.
     pub async fn read(&self) -> Vec<Point> {
-        match tokio::fs::read(&self.path).await {
-            Ok(bytes) => parse(&bytes).unwrap_or_default(),
-            Err(_) => Vec::new(),
+        self.read_strict().await.unwrap_or_default()
+    }
+
+    /// For changing: refused when locked, so the file is never overwritten
+    /// unread.
+    async fn read_strict(&self) -> std::io::Result<Vec<Point>> {
+        Ok(
+            match crate::sealed_file::read(&self.path, &self.vault).await? {
+                Some(plain) => parse(&plain).unwrap_or_default(),
+                None => Vec::new(),
+            },
+        )
+    }
+
+    pub async fn reseal(&self) -> std::io::Result<()> {
+        if tokio::fs::metadata(&self.path).await.is_ok() {
+            let held = self.read_strict().await?;
+            self.write(&held).await?;
         }
+        Ok(())
     }
 
     /// Adds points, keeping the later of two for a day. Returns how many days
     /// were not there before.
     pub async fn absorb(&self, incoming: &[Point]) -> std::io::Result<usize> {
-        let held = self.read().await;
+        let held = self.read_strict().await?;
         let merged = snapshots::merge([held.as_slice(), incoming]);
         let added = merged
             .iter()
@@ -80,24 +103,21 @@ impl LocalPoints {
     }
 
     async fn write(&self, points: &[Point]) -> std::io::Result<()> {
-        if let Some(dir) = self.path.parent() {
-            tokio::fs::create_dir_all(dir).await?;
-        }
         let body = body_of(points)?;
-        let temp = self
-            .path
-            .with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
-        tokio::fs::write(&temp, &body).await?;
-        tokio::fs::rename(&temp, &self.path).await?;
-        Ok(())
+        crate::sealed_file::write(&self.path, &self.vault, &body).await
     }
 }
 
 /// Put this machine's points in its slot, then read every machine's back.
 /// Never an error to the caller: history failing to share must not turn a
 /// good launch into a bad one.
-pub async fn share(primary: Arc<dyn Store>, install: String, data_dir: PathBuf) {
-    let local = LocalPoints::new(&data_dir);
+pub async fn share(
+    primary: Arc<dyn Store>,
+    install: String,
+    data_dir: PathBuf,
+    vault: Arc<ledger_store::Vault>,
+) {
+    let local = LocalPoints::sealed(&data_dir, vault);
     let Some(shelf) = primary.shelf(FOLDER) else {
         return;
     };
@@ -158,7 +178,12 @@ async fn publish(slot: &dyn Store, local: &[Point]) -> Result<(), StoreError> {
 
 async fn share_in_background(state: &AppState) {
     let (primary, install) = state.primary_and_install().await;
-    tauri::async_runtime::spawn(share(primary, install, state.places.data_dir.clone()));
+    tauri::async_runtime::spawn(share(
+        primary,
+        install,
+        state.places.data_dir.clone(),
+        state.vault.clone(),
+    ));
 }
 
 /// Take today's point if there is not one yet, then share. `today` is the
@@ -171,7 +196,7 @@ pub async fn take_snapshot(state: State<'_, AppState>, today: String) -> Answer<
     let Some(day) = Day::parse(&today) else {
         return Err(CommandError::Message("today must be yyyy-mm-dd".into()));
     };
-    let local = LocalPoints::new(&state.places.data_dir);
+    let local = state.points();
     let held = local.read().await;
     let mut took = false;
     if !held.iter().any(|p| p.at == day.iso()) {
@@ -243,7 +268,7 @@ pub async fn snapshot_import_preview(
     path: String,
 ) -> Answer<SnapshotImport> {
     let incoming = read_file(&path)?;
-    let held = LocalPoints::new(&state.places.data_dir).read().await;
+    let held = state.points().read().await;
     let overlap = incoming
         .iter()
         .filter(|p| held.iter().any(|h| h.at == p.at))
@@ -263,7 +288,8 @@ pub async fn snapshot_import_preview(
 #[tauri::command]
 pub async fn snapshot_import(state: State<'_, AppState>, path: String) -> Answer<usize> {
     let incoming = read_file(&path)?;
-    let added = LocalPoints::new(&state.places.data_dir)
+    let added = state
+        .points()
         .absorb(&incoming)
         .await
         .map_err(|e| CommandError::Message(e.to_string()))?;

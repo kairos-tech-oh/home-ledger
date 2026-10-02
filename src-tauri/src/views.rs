@@ -822,9 +822,7 @@ pub async fn history(state: State<'_, AppState>) -> Answer<HistoryView> {
 }
 
 pub async fn history_of(state: &AppState) -> HistoryView {
-    let local = crate::audit::Audit::new(&state.places.data_dir)
-        .read()
-        .await;
+    let local = state.audit().read().await;
     let (primary, install) = {
         let live = state.live().await;
         (live.engine.primary().clone(), live.config.install.clone())

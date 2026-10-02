@@ -5,12 +5,16 @@ mod audit;
 mod clock;
 mod commands;
 mod dashboard;
+mod encryption;
+#[cfg(test)]
+mod encryption_tests;
 #[cfg(test)]
 mod history_sync_tests;
 mod market;
 mod planning;
 mod plugin_history;
 mod quotes;
+mod sealed_file;
 mod snapshots;
 mod spending;
 mod state;
@@ -76,6 +80,10 @@ pub fn run() {
             updates::update_check,
             updates::update_install,
             updates::app_version,
+            encryption::encryption_status,
+            encryption::encryption_enable,
+            encryption::encryption_unlock,
+            encryption::encryption_disable,
             transactions::transactions_preview,
             market::holding_detail,
             quotes::refresh_prices,

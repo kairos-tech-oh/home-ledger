@@ -291,6 +291,51 @@ The pattern is that the app never silently merges and never silently deletes.
 Where two documents genuinely disagree it stops and shows you, and where data
 lives in an account of yours it stays there until you remove it yourself.
 
+## Encryption
+
+Off by default, and turned on in Settings with a passphrase. While on,
+nothing that holds balances is stored readable: the ledger on every store,
+the history and snapshot objects each machine publishes, and the local
+outbox, history and snapshot files are all sealed. Only the share-price cache
+(public market data) and `config.json` (store locations, no figures and no
+secrets) stay plain.
+
+**Where it sits.** Every store the engine is built with is wrapped in
+`Sealed` (`ledger-store/src/sealed.rs`). The wrapper seals on save and opens
+on load, so the engine, the outbox replay, conditional writes and history
+sharing work exactly as before, on plaintext, and no backend knows. A version
+is the sealed bytes' own, so compare-and-swap is unchanged.
+
+**The format.** `HLSEAL1
+`, a length, a JSON header, then the ciphertext:
+XChaCha20-Poly1305 under a random 256-bit data key, with the magic, length
+and header as associated data. Altering any byte fails to open. Anything not
+starting with the magic is a plain file from before, and reads as it is.
+
+**The keys.** The header carries the data key wrapped twice: under a key
+stretched from the passphrase, and under one stretched from a 160-bit
+recovery code, both with Argon2id (64 MiB, three passes, about 0.1 s). So any
+machine opens any copy with the passphrase or the code alone, and nothing
+about the key is stored anywhere else. Each machine keeps the unwrapped data
+key, named by its id, in the OS keychain; `config.json` records only that id.
+
+**Another machine.** One whose copy is sealed and which holds no key gets an
+unlock screen in place of the app. The passphrase or the recovery code
+unlocks it once; it keeps the key and seals its own local files.
+
+**Never half-on.** While encryption is on and the machine is locked, every
+write is refused rather than made plain, and a local file that is sealed but
+cannot be opened is refused rather than read as empty and overwritten.
+
+**Turning it off** needs the passphrase and rewrites everything plain. It is
+per machine: another machine that still has it on seals the ledger again the
+next time it saves, so it is turned off on each.
+
+**What it does not cover.** Old versions a store kept from before (S3 bucket
+versioning, Drive revisions) stay readable until removed there. Someone who
+controls the user's account on an unlocked machine can read the keychain, as
+with every other credential.
+
 ## Decided
 
 **No client-side encryption.** The store holds the document as written. S3,
