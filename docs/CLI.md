@@ -94,6 +94,7 @@ apart.
 | `hl payday <earner> [--undo]` | One paycheck's worth into every bucket that earner funds |
 | `hl statement new --card C --balance N --date D [--bucket-source A] [--spend-source A] [--no-account-moves]` | Starts a statement, taking its sources from the card's last one when not given |
 | `hl statement import <statement> <file.csv> [--member All] [--bucket B]` | Adds the purchases from a bank export; payments and charges already there are left out |
+| `hl statement import <statement> --from-bank [--member All] [--bucket B]` | Fetches the card's charges from its bank and adds the ones in the statement's dates, each to the bucket its merchant went to last |
 | `hl statement settle <statement> [--cover Overflow\|everyday\|negative\|Groceries=Overflow]…` | Settles, saying where a short bucket's rest comes from |
 | `hl statement undo <statement>` | Undoes a settle exactly |
 | `hl trade buy\|sell <holding or ticker> <quantity> <price>` | Records a trade |
@@ -102,6 +103,23 @@ apart.
 | `hl apply <file.json \| ->` | Any edit the app can make, in its own JSON form; a list applies each in turn |
 | `hl import <ledger.json> [--replace]` | Reads a ledger from another client; shows what it holds unless `--replace` |
 | `hl import-history --machine <name> [--file audit.json] [--dry-run]` | Brings in the Omarchy plugin's history |
+
+### Bank connections
+
+Through Plaid, with your own Plaid keys. See [BANK-CONNECTIONS.md](BANK-CONNECTIONS.md).
+
+| Command | Does |
+|---|---|
+| `hl bank` | The keys' environment, each connected bank, its accounts and what they are linked to |
+| `hl bank keys [--environment sandbox|production] [--client-id ID]` | Saves your Plaid keys once Plaid accepts them. The secret comes from `PLAID_SECRET` or a hidden prompt, never an argument |
+| `hl bank keys --forget` | Removes them |
+| `hl bank connect` · `hl bank connect --again <bank>` | Opens Plaid's sign-in in your browser and waits; or signs a connection in again |
+| `hl bank link <bank account> <ledger account|none>` | Links a bank account, by name, last four digits or id |
+| `hl bank fetch` | New transactions and balances from every connected bank |
+| `hl bank balances [--apply]` | The bank's balances where they differ from the ledger's; `--apply` accepts them |
+| `hl bank disconnect <bank>` | Ends the connection at Plaid and forgets it here |
+
+Bank edits are labelled `plaid` in the history: "Office PC · cli · nightly · plaid".
 
 ## Who made a change
 
@@ -132,6 +150,9 @@ hl statement settle "Chase Sapphire" --cover Overflow
 
 # Net worth, for another tool
 hl --json summary | jq -r .net
+
+# Catch a statement up from the bank, every morning
+hl statement import "Chase Sapphire" --from-bank --via morning
 
 # What changed this week, made by scripts
 hl history --since 7d --client cli

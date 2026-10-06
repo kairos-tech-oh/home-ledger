@@ -133,12 +133,15 @@ pub async fn statement_new(s: &Session, n: NewStatement<'_>) -> Outcome {
 pub async fn statement_import(
     s: &Session,
     which: &str,
-    file: &str,
+    file: Option<&str>,
     member: &str,
     bucket: Option<&str>,
 ) -> Outcome {
     let v = s.view().await?;
     let r = statement(&v, which)?;
+    let Some(file) = file else {
+        return crate::bank::statement_import(s, &r.id, member, bucket).await;
+    };
     let text = std::fs::read_to_string(file)
         .map_err(|e| Failure::Usage(format!("cannot read {file}: {e}")))?;
     let bucket_id = match bucket {

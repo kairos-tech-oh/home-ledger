@@ -499,6 +499,13 @@ export interface ImportRow {
   duplicate: boolean;
   afterStatement: boolean;
   suggested: boolean;
+  /** On an earlier statement's dates; only a bank fetch sets it. */
+  earlier: boolean;
+  /** From a bank connection: its id for the charge, and the bank's own words. */
+  bankRef?: string;
+  bankText?: string;
+  /** Where this merchant's charges went last: a bucket id, "" for everyday. */
+  suggestedBucket: string | null;
 }
 
 export interface ImportPreview {
@@ -691,6 +698,85 @@ export const quotes = {
   hasKey: () => invoke<boolean>("has_api_key"),
   saveKey: (key: string) => invoke<boolean>("save_api_key", { key }),
   forgetKey: () => invoke<boolean>("forget_api_key"),
+};
+
+export interface BankAccountView {
+  id: string;
+  name: string;
+  mask: string;
+  kind: string;
+  subtype: string;
+  linked: string;
+  linkedName: string;
+  current: string | null;
+  available: string | null;
+}
+
+export interface BankItemView {
+  id: string;
+  institution: string;
+  connectedAt: string;
+  fetchedAt: string;
+  gathering: boolean;
+  problem: string;
+  needsSignIn: boolean;
+  transactions: number;
+  accounts: BankAccountView[];
+}
+
+export interface BankStatus {
+  environment: string | null;
+  keychain: boolean;
+  items: BankItemView[];
+}
+
+export interface BankConnecting {
+  state: "waiting" | "exited" | "connected" | "updated";
+  message: string;
+  item: BankItemView | null;
+}
+
+export interface BankFetched {
+  items: {
+    id: string;
+    institution: string;
+    added: number;
+    changed: number;
+    removed: number;
+    gathering: boolean;
+    problem: string;
+    needsSignIn: boolean;
+  }[];
+}
+
+export interface BalanceProposal {
+  accountId: string;
+  account: string;
+  institution: string;
+  bankAccount: string;
+  from: string | null;
+  to: string;
+  availableCredit: string | null;
+}
+
+/** Bank connections through Plaid, with the person's own keys. */
+export const bank = {
+  status: () => invoke<BankStatus>("bank_status"),
+  saveKeys: (clientId: string, secret: string, environment: string) =>
+    invoke<BankStatus>("bank_save_keys", { clientId, secret, environment }),
+  forgetKeys: () => invoke<BankStatus>("bank_forget_keys"),
+  connect: (item: string | null) => invoke<{ token: string; url: string }>("bank_connect", { item }),
+  connectCheck: (token: string, item: string | null) =>
+    invoke<BankConnecting>("bank_connect_check", { token, item }),
+  link: (item: string, account: string, ledgerAccount: string) =>
+    invoke<BankStatus>("bank_link", { item, account, ledgerAccount }),
+  disconnect: (item: string) => invoke<BankStatus>("bank_disconnect", { item }),
+  fetch: (only: string | null = null) => invoke<BankFetched>("bank_fetch", { only }),
+  preview: (id: string, fetch: boolean) => invoke<ImportPreview>("bank_preview", { id, fetch }),
+  import: (id: string, lines: Record<string, unknown>[]) =>
+    invoke<Applied | null>("bank_import", { id, lines }),
+  balances: () => invoke<BalanceProposal[]>("bank_balances"),
+  applyBalances: (accounts: string[]) => invoke<number>("bank_apply_balances", { accounts }),
 };
 
 export const ledger = {

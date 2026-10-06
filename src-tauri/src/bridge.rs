@@ -2,6 +2,7 @@
 //! for the desktop app, the `hl` command line and the phone app alike; this
 //! file is the only place that knows the work is reached through Tauri.
 
+use ledger_app::bank as bk;
 use ledger_app::{Answer, AppState};
 use ledger_app::{
     commands as cmd, dashboard as dash, encryption as enc, planning as plan, quotes as q,
@@ -59,6 +60,22 @@ forward! {
     forget_api_key() -> bool => q::forget_api_key;
     has_api_key() -> bool => q::has_api_key;
     refresh_prices() -> q::Refreshed => q::refresh_prices;
+
+    bank_status() -> bk::BankStatus => bk::bank_status;
+    bank_save_keys(client_id: String, secret: String, environment: String)
+        -> bk::BankStatus => bk::bank_save_keys;
+    bank_forget_keys() -> bk::BankStatus => bk::bank_forget_keys;
+    bank_connect(item: Option<String>) -> bk::plaid::LinkToken => bk::bank_connect;
+    bank_connect_check(token: String, item: Option<String>)
+        -> bk::Connecting => bk::bank_connect_check;
+    bank_link(item: String, account: String, ledger_account: String)
+        -> bk::BankStatus => bk::bank_link;
+    bank_disconnect(item: String) -> bk::BankStatus => bk::bank_disconnect;
+    bank_fetch(only: Option<String>) -> bk::Fetched => bk::bank_fetch;
+    bank_preview(id: String, fetch: bool) -> tx::ImportPreview => bk::bank_preview;
+    bank_import(id: String, lines: Vec<Value>) -> Option<cmd::Applied> => bk::bank_import;
+    bank_balances() -> Vec<bk::Proposal> => bk::bank_balances;
+    bank_apply_balances(accounts: Vec<String>) -> usize => bk::bank_apply_balances;
 
     take_snapshot(today: String) -> bool => snap::take_snapshot;
     snapshot_import_preview(path: String) -> snap::SnapshotImport => snap::snapshot_import_preview;

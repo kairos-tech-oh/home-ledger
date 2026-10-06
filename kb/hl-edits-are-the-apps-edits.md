@@ -14,7 +14,8 @@ Every `hl` edit is built as the same op the app sends and applied by the same
 writer, so the same rules refuse it, and with `--dry-run` it is applied to a
 copy and nothing is queued or written. Each one is recorded in the change
 history with the machine's name, `client: cli`, the install's id, the
-version, and any `--via` label. `hl` shares the app's setup on a machine
+version, and any `--via` label, followed by "plaid" when the edit came from a
+bank connection. `hl` shares the app's setup on a machine
 that has it; `HOME_LEDGER_DIR` points it at a separate one. It exits 3 when
 locked, 4 when an edit is queued unsynced, 5 when a rule refuses, and stops
 quietly when its output pipe closes. The outbox it shares with the app is
@@ -29,7 +30,9 @@ rules, one record.
 ```bash
 cargo test -p hl
 cargo test -p ledger-store two_programs_queueing_at_once_lose_no_edit
-grep -q 'ledger_app::commands::apply_value(&self.state, op)' crates/hl/src/session.rs
+grep -q 'ledger_app::commands::apply_via(&self.state, op, via)' crates/hl/src/session.rs
+grep -q 'apply_as(state, op, "").await' crates/ledger-app/src/commands.rs
+grep -q 'apply_as(state, op, via).await' crates/ledger-app/src/commands.rs
 grep -q 'ledger_app::commands::dry_run(&self.state, op)' crates/hl/src/session.rs
 grep -q 'client: client.name().into(),' crates/ledger-app/src/state.rs
 grep -q 'HOME_LEDGER_DIR' crates/ledger-config/src/lib.rs

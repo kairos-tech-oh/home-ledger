@@ -10,6 +10,17 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Bank connections through Plaid, with your own Plaid keys. A statement's
+  import can fetch the card's charges from the bank, with clean merchant names
+  ("Kroger", not "KROGER #920") and the bank's own words kept alongside. Linked
+  accounts' balances are offered to accept. Nothing is written without being
+  shown, a bank charge is never added twice, and bank edits are labelled
+  "plaid" in the history. Also `hl bank` and `hl statement import --from-bank`.
+  See docs/BANK-CONNECTIONS.md.
+- Imports suggest each charge's bucket from where that merchant's charges went
+  last, and each row can be given its own bucket.
+
 ## [0.2.7] - 2026-10-06
 
 ### Added

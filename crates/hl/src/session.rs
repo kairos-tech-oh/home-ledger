@@ -57,6 +57,12 @@ impl Session {
     /// `hl` makes comes through here, so it is recorded in the history the
     /// same way the app's are, signed with this machine, `cli` and `--via`.
     pub async fn edit(&self, op: Value) -> Outcome {
+        self.edit_via(op, "").await
+    }
+
+    /// The same, labelled in the history with what brought the edit in, such
+    /// as "plaid", after the script's own `--via`.
+    pub async fn edit_via(&self, op: Value, via: &str) -> Outcome {
         if self.dry_run {
             let entry = ledger_app::commands::dry_run(&self.state, op)
                 .await
@@ -73,7 +79,7 @@ impl Session {
             }
             return Ok(());
         }
-        let applied = ledger_app::commands::apply_value(&self.state, op)
+        let applied = ledger_app::commands::apply_via(&self.state, op, via)
             .await
             .map_err(refusal)?;
         self.state.finish_background().await;

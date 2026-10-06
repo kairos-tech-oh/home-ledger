@@ -27,6 +27,7 @@ macro_rules! print {
 }
 
 mod alias;
+mod bank;
 mod out;
 mod read;
 mod session;
@@ -202,11 +203,53 @@ enum Command {
         #[arg(long)]
         replace: bool,
     },
+    /// Bank connections through Plaid, with your own keys. Alone, shows them.
+    Bank {
+        #[command(subcommand)]
+        action: Option<BankAction>,
+    },
     /// Bring in the Omarchy plugin's change history.
     ImportHistory {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum BankAction {
+    /// Save your Plaid keys: the secret from PLAID_SECRET or asked for.
+    Keys {
+        #[arg(long, value_parser = ["sandbox", "production"], default_value = "sandbox")]
+        environment: String,
+        /// Your Plaid client id; from PLAID_CLIENT_ID or asked for if left out.
+        #[arg(long)]
+        client_id: Option<String>,
+        /// Remove the saved keys instead.
+        #[arg(long)]
+        forget: bool,
+    },
+    /// Connect a bank, in your browser through Plaid.
+    Connect {
+        /// Sign an existing connection in again, by its bank's name.
+        #[arg(long)]
+        again: Option<String>,
+    },
+    /// Link a bank account (name, last four digits or id) to a ledger
+    /// account, or to "none".
+    Link {
+        account: String,
+        ledger_account: String,
+    },
+    /// Fetch new transactions and balances from every connected bank.
+    Fetch,
+    /// The bank's balances where they differ from the ledger's.
+    Balances {
+        /// Accept every one of them.
+        #[arg(long)]
+        apply: bool,
+    },
+    /// End a connection, by its bank's name.
+    Disconnect { bank: String },
 }
 
 #[derive(Subcommand)]
@@ -266,14 +309,20 @@ enum StatementAction {
         #[arg(long)]
         no_account_moves: bool,
     },
-    /// Add the purchases from a bank or card CSV export.
+    /// Add the purchases from a bank or card CSV export, or with
+    /// --from-bank straight from the card's bank connection.
     Import {
         statement: String,
-        file: String,
+        #[arg(required_unless_present = "from_bank")]
+        file: Option<String>,
+        /// Fetch the card's charges from its bank instead of a file.
+        #[arg(long, conflicts_with = "file")]
+        from_bank: bool,
         /// Who spent them, to start with.
         #[arg(long, default_value = "All")]
         member: String,
-        /// The bucket they come out of; everyday spending if left out.
+        /// The bucket they come out of. Left out: everyday spending for a file,
+        /// and for the bank, where each merchant's charges went last.
         #[arg(long)]
         bucket: Option<String>,
     },
@@ -425,9 +474,13 @@ async fn run(cli: Cli) -> Outcome {
             Some(StatementAction::Import {
                 statement,
                 file,
+                from_bank: _,
                 member,
                 bucket,
-            }) => write::statement_import(&s, &statement, &file, &member, bucket.as_deref()).await,
+            }) => {
+                write::statement_import(&s, &statement, file.as_deref(), &member, bucket.as_deref())
+                    .await
+            }
             Some(StatementAction::Settle { statement, cover }) => {
                 write::statement_settle(&s, &statement, &cover).await
             }
@@ -463,6 +516,22 @@ async fn run(cli: Cli) -> Outcome {
         Command::Snapshot => setup::snapshot(&s).await,
         Command::Apply { source } => write::apply(&s, &source).await,
         Command::Import { file, replace } => setup::import(&s, &file, replace).await,
+        Command::Bank { action } => match action {
+            None => bank::status(&s).await,
+            Some(BankAction::Keys {
+                environment,
+                client_id,
+                forget,
+            }) => bank::keys(&s, &environment, client_id, forget).await,
+            Some(BankAction::Connect { again }) => bank::connect(&s, again.as_deref()).await,
+            Some(BankAction::Link {
+                account,
+                ledger_account,
+            }) => bank::link(&s, &account, &ledger_account).await,
+            Some(BankAction::Fetch) => bank::fetch(&s).await,
+            Some(BankAction::Balances { apply }) => bank::balances(&s, apply).await,
+            Some(BankAction::Disconnect { bank: which }) => bank::disconnect(&s, &which).await,
+        },
         // Handled before the session opened.
         Command::Status
         | Command::Name { .. }

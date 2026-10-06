@@ -1,5 +1,6 @@
 <script lang="ts">
   import PriceKey from "./PriceKey.svelte";
+  import BankPanel from "./BankPanel.svelte";
   import SnapshotImport from "./SnapshotImport.svelte";
   import About from "./About.svelte";
   import EncryptionPanel from "./EncryptionPanel.svelte";
@@ -301,6 +302,7 @@
 
   {#if !firstRun}
     <EncryptionPanel onchanged={() => onchanged(setup)} />
+    <BankPanel />
     <PriceKey />
     <SnapshotImport />
     <About />
