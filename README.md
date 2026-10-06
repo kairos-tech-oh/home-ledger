@@ -58,6 +58,20 @@ A store that cannot promise a real compare-and-swap is not allowed to be the
 primary by default, because a fallback chain that treats a network share and an
 S3 bucket as equivalent will quietly lose writes on the share.
 
+## From the command line
+
+`hl` reads and changes the same ledger from a terminal or a script, through the
+same rules and into the same history, signed `cli`:
+
+```sh
+hl summary
+hl payday Chris
+hl statement import "Chase Sapphire" Chase.csv --bucket Groceries
+hl --json buckets | jq '.[] | select(.committedShort != null)'
+```
+
+See [docs/CLI.md](docs/CLI.md) for every command.
+
 ## Building it
 
 Requires [Rust](https://rustup.rs) and Node 22+.

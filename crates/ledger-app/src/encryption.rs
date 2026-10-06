@@ -177,6 +177,14 @@ pub async fn unlock(state: &AppState, secret: String) -> Answer<bool> {
     Ok(kept)
 }
 
+/// Forgets the key on this machine. The ledger stays encrypted; the next use
+/// here asks for the passphrase again.
+pub async fn lock(state: &AppState) -> Answer<()> {
+    let _ = state.secrets.forget(DATA_KEY);
+    state.vault.set(state.vault.required(), None);
+    Ok(())
+}
+
 /// Turns encryption off, after checking the passphrase, and rewrites
 /// everything plain.
 pub async fn encryption_disable(state: &AppState, passphrase: String) -> Answer<Vec<String>> {

@@ -1,0 +1,28 @@
+[package]
+name = "hl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Home Ledger from the command line: read figures and make edits from scripts and the terminal."
+
+[[bin]]
+name = "hl"
+path = "src/main.rs"
+
+[dependencies]
+ledger-app.workspace = true
+ledger-domain.workspace = true
+ledger-config.workspace = true
+ledger-store.workspace = true
+ledger-writer.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+uuid.workspace = true
+clap = { version = "4", features = ["derive", "env", "wrap_help"] }
+rpassword = "7"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[dev-dependencies]
+tempfile = "3"

@@ -52,7 +52,17 @@ pub struct Places {
 }
 
 impl Places {
+    /// Where this install keeps its files: the platform's usual folders, or
+    /// everything under `HOME_LEDGER_DIR` when that is set, for a second
+    /// ledger or a test copy that never touches the real one.
     pub fn discover() -> Result<Self, SetupError> {
+        if let Some(dir) = std::env::var_os("HOME_LEDGER_DIR").filter(|d| !d.is_empty()) {
+            let dir = PathBuf::from(dir);
+            return Ok(Self {
+                config_file: dir.join("config").join("config.json"),
+                data_dir: dir.join("data"),
+            });
+        }
         let dirs = ProjectDirs::from("net", "kairos", "home-ledger")
             .ok_or_else(|| SetupError::Invalid("no home directory to store data in".into()))?;
         Ok(Self {

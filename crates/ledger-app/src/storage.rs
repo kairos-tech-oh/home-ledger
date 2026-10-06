@@ -130,8 +130,16 @@ pub async fn promote_store(state: &AppState, id: String, force: bool) -> Answer<
         )));
     }
 
-    let truth = ledger_config::build_store(&current, state.secrets.as_ref())?;
-    let target = ledger_config::build_store(&candidate, state.secrets.as_ref())?;
+    // Through the vault, as every other read is: with encryption on, both
+    // copies are sealed, and comparing the sealed bytes would compare nothing.
+    let truth = ledger_store::Sealed::wrap(
+        ledger_config::build_store(&current, state.secrets.as_ref())?,
+        state.vault.clone(),
+    );
+    let target = ledger_store::Sealed::wrap(
+        ledger_config::build_store(&candidate, state.secrets.as_ref())?,
+        state.vault.clone(),
+    );
 
     // Read both before deciding. A promotion is the one place two copies are
     // compared, and getting it wrong silently discards one of them.

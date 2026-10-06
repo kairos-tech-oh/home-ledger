@@ -11,6 +11,13 @@ described here but have no tags of their own.
 ## [Unreleased]
 
 ### Added
+- `hl`, Home Ledger from the command line: every figure the app shows, every
+  edit it makes, `--json` for scripts, `--dry-run`, and exit codes for
+  automation. See docs/CLI.md.
+- The change history records which program made each change (desktop, cli,
+  mobile), the install, the version, and a script's `--via` label, and can be
+  filtered by machine and program. A computer still on a default name is asked
+  to name itself.
 - Encryption, turned on in Settings with a passphrase. The ledger on every
   store, its shared history and snapshots, and the local files holding
   balances are encrypted; a recovery code opens them if the passphrase is

@@ -185,8 +185,14 @@ mod tests {
         let script = std::sync::Arc::new(Outbox::new(&path));
         let mut tasks = Vec::new();
         for i in 0..40 {
-            let outbox = if i % 2 == 0 { app.clone() } else { script.clone() };
-            tasks.push(tokio::spawn(async move { outbox.push(op("edit")).await.unwrap() }));
+            let outbox = if i % 2 == 0 {
+                app.clone()
+            } else {
+                script.clone()
+            };
+            tasks.push(tokio::spawn(async move {
+                outbox.push(op("edit")).await.unwrap()
+            }));
         }
         for t in tasks {
             t.await.unwrap();

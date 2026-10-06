@@ -88,6 +88,24 @@ pub async fn apply(state: &AppState, op: Value) -> Answer<Option<Applied>> {
     apply_value(state, op).await
 }
 
+/// What an edit would do, without doing it: applied to a copy of the ledger
+/// and never queued, written or recorded. None when it would change nothing.
+pub async fn dry_run(state: &AppState, op: Value) -> Answer<Option<AuditEntry>> {
+    let parsed: Op = serde_json::from_value(op)
+        .map_err(|e| CommandError::Message(format!("that is not an edit this app knows: {e}")))?;
+    let live = state.live().await;
+    let loaded = live.engine.load().await?;
+    let mut ledger = match &loaded.snapshot {
+        Some(s) => ledger_writer::read(&s.body)?,
+        None => Ledger::default(),
+    };
+    match live.writer.apply(&mut ledger, &parsed) {
+        Ok(entry) => Ok(Some(entry)),
+        Err(WriteError::Unchanged(_)) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
 /// The same edit path, callable from inside the app rather than from the UI.
 /// None means the edit was valid but had nothing to do, so nothing was queued.
 pub async fn apply_value(state: &AppState, op: Value) -> Answer<Option<Applied>> {

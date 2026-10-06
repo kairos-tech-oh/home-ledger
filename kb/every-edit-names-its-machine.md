@@ -23,7 +23,7 @@ cargo test -p ledger-app a_blank_machine_name_is_refused
 cargo test -p ledger-app a_machine_name_is_trimmed_and_capped
 cargo test -p ledger-app a_renamed_machine_signs_the_next_edit
 grep -q 'Machine name' ui/src/Storage.svelte
-grep -q 'entry.actor' ui/src/History.svelte
+grep -qF 'return [e.actor, e.client, e.via].filter(Boolean)' ui/src/History.svelte
 ```
 
 ## Depends On
