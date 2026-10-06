@@ -59,9 +59,34 @@ impl Outbox {
         }
     }
 
+    /// Held while the queue is read, changed and written back. The desktop app
+    /// and the `hl` command line can both be adding edits at once; without
+    /// this, each could read the same queue and one edit would be lost.
+    async fn exclusive(&self) -> Result<std::fs::File, OutboxError> {
+        let mut name = self.path.as_os_str().to_owned();
+        name.push(".lock");
+        let path = PathBuf::from(name);
+        if let Some(dir) = self.path.parent() {
+            tokio::fs::create_dir_all(dir).await?;
+        }
+        tokio::task::spawn_blocking(move || {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .write(true)
+                .open(&path)?;
+            file.lock()?;
+            Ok::<_, std::io::Error>(file)
+        })
+        .await
+        .map_err(|e| OutboxError::Corrupt(e.to_string()))?
+        .map_err(OutboxError::Io)
+    }
+
     /// Writes the queue back as it is, so it is sealed (or unsealed) to match
     /// whether encryption is now on.
     pub async fn reseal(&self) -> Result<(), OutboxError> {
+        let _held = self.exclusive().await?;
         match tokio::fs::metadata(&self.path).await {
             Ok(_) => {
                 let ops = self.read().await?;
@@ -110,6 +135,7 @@ impl Outbox {
 
     /// Append an op and return how many are now waiting.
     pub async fn push(&self, op: PendingOp) -> Result<usize, OutboxError> {
+        let _held = self.exclusive().await?;
         let mut ops = self.read().await?;
         ops.push(op);
         self.write(&ops).await?;
@@ -120,6 +146,7 @@ impl Outbox {
     /// rather than a count because an edit can arrive while a flush is in
     /// flight, and truncating by length would silently eat it.
     pub async fn forget(&self, landed: &[String]) -> Result<usize, OutboxError> {
+        let _held = self.exclusive().await?;
         let ops = self.read().await?;
         let kept: Vec<PendingOp> = ops
             .into_iter()
@@ -131,6 +158,7 @@ impl Outbox {
     }
 
     pub async fn clear(&self) -> Result<(), OutboxError> {
+        let _held = self.exclusive().await?;
         self.write(&[]).await
     }
 }
@@ -146,6 +174,24 @@ mod tests {
             device: "laptop".into(),
             op: serde_json::json!({ "op": tag }),
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn two_programs_queueing_at_once_lose_no_edit() {
+        // The desktop app and a script, each with its own handle on one file.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("outbox.json");
+        let app = std::sync::Arc::new(Outbox::new(&path));
+        let script = std::sync::Arc::new(Outbox::new(&path));
+        let mut tasks = Vec::new();
+        for i in 0..40 {
+            let outbox = if i % 2 == 0 { app.clone() } else { script.clone() };
+            tasks.push(tokio::spawn(async move { outbox.push(op("edit")).await.unwrap() }));
+        }
+        for t in tasks {
+            t.await.unwrap();
+        }
+        assert_eq!(app.read().await.unwrap().len(), 40);
     }
 
     #[tokio::test]
