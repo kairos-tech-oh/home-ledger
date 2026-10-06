@@ -260,6 +260,7 @@ a test.
 
 ```bash
 cargo fmt --all --check
+node tools/release/stage-hl.mjs --debug   # the app crate needs hl staged to compile
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 npm --prefix ui run check
