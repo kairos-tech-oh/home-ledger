@@ -660,3 +660,117 @@ fn a_card_is_offered_what_it_owes_and_the_credit_left() {
         "an open statement decides"
     );
 }
+
+#[tokio::test]
+async fn a_bank_account_links_only_to_a_ledger_account_of_its_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = machine(dir.path());
+    for (name, kind) in [("Sapphire", "credit"), ("Fidelity Savings", "savings")] {
+        edit(
+            &state,
+            json!({ "op": "set", "kind": "account", "record": { "name": name, "type": kind } }),
+        )
+        .await;
+    }
+    let ledger = document(&state).await.unwrap();
+    let id = |name: &str| {
+        ledger
+            .accounts
+            .iter()
+            .find(|a| a.name == name)
+            .unwrap()
+            .id
+            .clone()
+    };
+    banks(&state)
+        .change(|f| {
+            f.items.push(Item {
+                id: "item-1".into(),
+                accounts: vec![store::Account {
+                    id: "saving".into(),
+                    name: "Plaid Saving".into(),
+                    kind: "depository".into(),
+                    subtype: "savings".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })
+        })
+        .await
+        .unwrap();
+
+    let refused = bank_link(&state, "item-1".into(), "saving".into(), id("Sapphire")).await;
+    let said = refused.err().unwrap().to_string();
+    assert!(
+        said.contains("Plaid Saving is a savings account at the bank")
+            && said.contains("a checking or savings account"),
+        "{said}"
+    );
+    let linked = bank_link(
+        &state,
+        "item-1".into(),
+        "saving".into(),
+        id("Fidelity Savings"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(linked.items[0].accounts[0].linked_name, "Fidelity Savings");
+}
+
+#[test]
+fn a_payment_to_the_card_is_never_a_purchase_whatever_its_sign() {
+    let card = "c".repeat(32);
+    let t = |id: &str, amount: i64, category: &str| plaid::RemoteTransaction {
+        id: id.into(),
+        account_id: "a".into(),
+        date: "2026-09-20".into(),
+        name: "AUTOMATIC PAYMENT - THANK".into(),
+        category: category.into(),
+        amount: Money::from(amount),
+        ..Default::default()
+    };
+    let file = store::BankFile {
+        items: vec![Item {
+            fetched_at: "2026-10-06T00:00:00Z".into(),
+            accounts: vec![store::Account {
+                id: "a".into(),
+                linked: card.clone(),
+                ..Default::default()
+            }],
+            transactions: vec![
+                t("sandbox", 2078, "LOAN_PAYMENTS_OTHER_PAYMENT"),
+                t("real", -2078, "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"),
+                t("in", 40, "TRANSFER_IN_ACCOUNT_TRANSFER"),
+                t("kfc", 12, "FOOD_AND_DRINK_FAST_FOOD"),
+            ],
+            ..Default::default()
+        }],
+    };
+    let ledger = Ledger {
+        reconciliations: vec![Reconciliation {
+            card_account_id: card,
+            statement_date: "2026-09-30".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let (rows, _) = bank_rows(&file, &ledger, &ledger.reconciliations[0], "2026-10-06");
+    let taken: Vec<_> = rows
+        .iter()
+        .map(|r| (r.bank_ref.as_str(), r.suggested))
+        .collect();
+    assert_eq!(
+        taken,
+        [
+            ("in", false),
+            ("kfc", true),
+            ("real", false),
+            ("sandbox", false)
+        ]
+    );
+    let sandbox = rows.iter().find(|r| r.bank_ref == "sandbox").unwrap();
+    assert_eq!(
+        sandbox.transaction.problem,
+        "a payment to the card, not a purchase"
+    );
+}

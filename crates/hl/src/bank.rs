@@ -402,7 +402,7 @@ pub async fn statement_import(
         let earlier = preview.rows.iter().filter(|r| r.earlier).count();
         println!(
             "{} from the bank: {} to add, {} already added, {} payments or credits, {} after the \
-             statement date, {} on the last statement's dates",
+             statement date, {} before its dates",
             preview.rows.len(),
             preview.charges,
             preview.duplicates,

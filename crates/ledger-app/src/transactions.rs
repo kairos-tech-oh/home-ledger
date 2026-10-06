@@ -22,8 +22,8 @@ pub struct Row {
     pub after_statement: bool,
     /// Worth adding unless the person says otherwise.
     pub suggested: bool,
-    /// Dated within an earlier statement of the same card, so most likely
-    /// already paid there. Only a bank fetch, which reaches back that far,
+    /// Dated before this statement's dates: within the card's last statement,
+    /// so most likely paid there, or before a first statement's weeks. Only a bank fetch, which reaches back that far,
     /// sets it.
     pub earlier: bool,
     /// The bank connection's id for it, which the import keeps on the line.

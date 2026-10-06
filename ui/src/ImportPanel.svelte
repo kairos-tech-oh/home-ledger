@@ -152,7 +152,7 @@
   function status(r: ImportPreview["rows"][number]): string {
     if (r.problem) return r.problem;
     if (r.duplicate) return source === "bank" ? "already added" : "already on this statement";
-    if (r.earlier) return "on the last statement's dates";
+    if (r.earlier) return "before this statement's dates";
     if (r.afterStatement) return "after the statement date";
     return "";
   }

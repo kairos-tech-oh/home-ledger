@@ -332,6 +332,36 @@ pub async fn bank_connect_check(
     }
 }
 
+/// The ledger account types a bank account of Plaid's `type` can be. A
+/// savings account feeding a credit card would put deposits on a statement
+/// and a bank balance on a debt, so a mismatch is refused, not guessed at.
+/// "other" in the ledger takes anything; a home or car is valued by the
+/// person, never by a bank, so nothing links to one.
+pub fn fits(plaid_kind: &str) -> &'static [&'static str] {
+    match plaid_kind {
+        "depository" => &["checking", "savings", "other"],
+        "credit" => &["credit", "heloc", "other"],
+        "loan" => &["loan", "heloc", "other"],
+        "investment" => &[
+            "investment",
+            "retirement-roth",
+            "retirement-traditional",
+            "other",
+        ],
+        _ => &[
+            "checking",
+            "savings",
+            "credit",
+            "heloc",
+            "loan",
+            "investment",
+            "retirement-roth",
+            "retirement-traditional",
+            "other",
+        ],
+    }
+}
+
 /// Links a bank's account to a ledger account, or unlinks it with an empty
 /// id. A ledger account is linked to one bank account at most.
 pub async fn bank_link(
@@ -342,8 +372,36 @@ pub async fn bank_link(
 ) -> Answer<BankStatus> {
     if !ledger_account.is_empty() {
         let ledger = document(state).await?;
-        if !ledger.accounts.iter().any(|a| a.id == ledger_account) {
+        let Some(target) = ledger.accounts.iter().find(|a| a.id == ledger_account) else {
             return Err(message("no such account in the ledger"));
+        };
+        let file = banks(state).read().await.map_err(message)?;
+        let bank_account = file
+            .items
+            .iter()
+            .filter(|i| i.id == item)
+            .flat_map(|i| i.accounts.iter())
+            .find(|a| a.id == account);
+        if let Some(b) = bank_account {
+            let allowed = fits(&b.kind);
+            if !allowed.contains(&target.kind.as_str()) {
+                let what = if b.subtype.is_empty() {
+                    &b.kind
+                } else {
+                    &b.subtype
+                };
+                let named: Vec<&str> = allowed.iter().filter(|k| **k != "other").copied().collect();
+                let choices = match named.split_last() {
+                    Some((last, [])) => last.to_string(),
+                    Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
+                    None => "other".to_string(),
+                };
+                return Err(message(format!(
+                    "{} is a {what} account at the bank, and {} is a {} account in the ledger. \
+                     It can be linked to a {choices} account.",
+                    b.name, target.name, target.kind,
+                )));
+            }
         }
     }
     let found = banks(state)
@@ -519,6 +577,9 @@ pub async fn bank_fetch(state: &AppState, only: Option<String>) -> Answer<Fetche
 
 // ---------------------------------------------------------------- importing
 
+/// Plaid categories that are never a purchase, whatever the sign.
+const PAYMENT_CATEGORIES: &[&str] = &["LOAN_PAYMENTS", "TRANSFER_IN"];
+
 fn days_before(iso: &str, days: i64) -> String {
     let Some(day) = ledger_math::calendar::Day::parse(iso) else {
         return String::new();
@@ -629,7 +690,11 @@ pub fn bank_rows(
         .into_iter()
         .enumerate()
         .map(|(i, t)| {
-            let charge = t.amount > Money::ZERO;
+            // Money out of a card is a purchase, unless Plaid says it is a
+            // payment or a transfer in: Plaid's Sandbox, and some banks,
+            // sign a card payment as money out.
+            let payment = PAYMENT_CATEGORIES.iter().any(|c| t.category.starts_with(c));
+            let charge = t.amount > Money::ZERO && !payment;
             let amount = Money::new(t.amount.inner().abs());
             let made = if t.authorized.is_empty() {
                 &t.date
@@ -659,6 +724,8 @@ pub fn bank_rows(
             };
             let problem = if charge {
                 String::new()
+            } else if payment {
+                "a payment to the card, not a purchase".to_string()
             } else {
                 "a payment, refund or credit, not a purchase".to_string()
             };

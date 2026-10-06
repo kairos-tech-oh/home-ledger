@@ -173,6 +173,19 @@
 
   const linkable = $derived(accounts.slice().sort((a, b) => a.name.localeCompare(b.name)));
 
+  // The ledger types each kind of bank account can be, as Rust checks it
+  // (bank::fits): a savings account is never offered for a credit card.
+  const FITS: Record<string, string[]> = {
+    depository: ["checking", "savings", "other"],
+    credit: ["credit", "heloc", "other"],
+    loan: ["loan", "heloc", "other"],
+    investment: ["investment", "retirement-roth", "retirement-traditional", "other"],
+  };
+  const fitting = (kind: string) =>
+    linkable.filter((l) =>
+      (FITS[kind] ?? Object.values(FITS).flat()).includes(l.kind),
+    );
+
   function when(iso: string): string {
     if (!iso) return "never";
     const d = new Date(iso);
@@ -343,7 +356,7 @@
                   aria-label="Ledger account for {a.name}"
                 >
                   <option value="">Not used</option>
-                  {#each linkable as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
+                  {#each fitting(a.kind) as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
                 </select>
               </td>
             </tr>
