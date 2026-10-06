@@ -10,10 +10,13 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-06
+
 ### Added
 - `hl`, Home Ledger from the command line: every figure the app shows, every
   edit it makes, `--json` for scripts, `--dry-run`, and exit codes for
-  automation. See docs/CLI.md.
+  automation. See docs/CLI.md. The Windows installer puts it on PATH and can
+  add `ledger` as a second name for it.
 - The change history records which program made each change (desktop, cli,
   mobile), the install, the version, and a script's `--via` label, and can be
   filtered by machine and program. A computer still on a default name is asked
