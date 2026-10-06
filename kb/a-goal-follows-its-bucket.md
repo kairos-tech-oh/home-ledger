@@ -26,7 +26,7 @@ second balance. Ported from `goalSaved` and `goalProgress` in the plugin's
 ## Check
 ```bash
 cargo test -p ledger-math goals
-grep -q 'ledger_math::goals_in_order(doc)' src-tauri/src/views.rs
+grep -q 'ledger_math::goals_in_order(doc)' crates/ledger-app/src/views.rs
 npm --prefix ui run check
 ```
 

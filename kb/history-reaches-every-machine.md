@@ -21,15 +21,15 @@ One writer per object means there is nothing to merge, so nothing can be lost.
 
 ## Check
 ```bash
-cargo test -p home-ledger an_edit_on_one_machine_shows_in_the_others_history
-cargo test -p home-ledger two_machines_publishing_at_once_lose_nothing
-cargo test -p home-ledger one_install_racing_itself_keeps_every_entry
-cargo test -p home-ledger separate_store_instances_keep_both_publishes
+cargo test -p ledger-app an_edit_on_one_machine_shows_in_the_others_history
+cargo test -p ledger-app two_machines_publishing_at_once_lose_nothing
+cargo test -p ledger-app one_install_racing_itself_keeps_every_entry
+cargo test -p ledger-app separate_store_instances_keep_both_publishes
 cargo test -p ledger-store two_instances_creating_at_once_have_one_winner
-cargo test -p home-ledger a_write_that_lands_first_is_merged_not_overwritten
-cargo test -p home-ledger existing_local_history_is_published_once
-cargo test -p home-ledger published_and_merged_history_stay_within_the_caps
-cargo test -p home-ledger a_store_without_a_shelf_keeps_history_local
+cargo test -p ledger-app a_write_that_lands_first_is_merged_not_overwritten
+cargo test -p ledger-app existing_local_history_is_published_once
+cargo test -p ledger-app published_and_merged_history_stay_within_the_caps
+cargo test -p ledger-app a_store_without_a_shelf_keeps_history_local
 cargo test -p ledger-store a_shelf_lists_what_its_slots_hold
 cargo test -p ledger-store a_listing_keeps_only_well_formed_names_under_the_prefix
 ```

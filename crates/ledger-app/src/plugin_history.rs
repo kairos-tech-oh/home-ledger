@@ -83,6 +83,9 @@ fn entry(raw: &Value, machine: &str) -> Option<AuditEntry> {
             .filter(|v| !v.is_null())
             .map(|v| Money::parse(v, Money::ZERO)),
         changes,
+        // Made in the Omarchy plugin, before this app existed.
+        client: "plugin".into(),
+        ..Default::default()
     })
 }
 
@@ -234,7 +237,7 @@ pub fn run_cli(args: &[String]) -> i32 {
             println!("dry run: nothing written");
             return 0;
         }
-        let state = match AppState::headless() {
+        let state = match AppState::headless(crate::state::Client::Cli { via: String::new() }) {
             Ok(state) => state,
             Err(e) => {
                 eprintln!("cannot open this machine's ledger: {e}");

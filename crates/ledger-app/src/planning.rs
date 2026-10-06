@@ -6,7 +6,6 @@ use ledger_domain::{Ledger, Money};
 use ledger_math::planning::{self, Day};
 use rust_decimal::prelude::ToPrimitive;
 use serde::Serialize;
-use tauri::State;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,12 +55,7 @@ pub struct PlanningView {
 
 /// `from` is today as the window sees it, so "today" is the person's own
 /// calendar day rather than the date in UTC.
-#[tauri::command]
-pub async fn planning(
-    state: State<'_, AppState>,
-    from: String,
-    to: String,
-) -> Answer<PlanningView> {
+pub async fn planning(state: &AppState, from: String, to: String) -> Answer<PlanningView> {
     let (Some(from), Some(to)) = (Day::parse(&from), Day::parse(&to)) else {
         return Err(CommandError::Message("dates must be yyyy-mm-dd".into()));
     };

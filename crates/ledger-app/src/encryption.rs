@@ -6,7 +6,6 @@ use crate::state::{AppState, DATA_KEY};
 use ledger_config::Secret;
 use ledger_store::sealed::{self, Kdf, Key, SealError};
 use serde::Serialize;
-use tauri::State;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,9 +36,8 @@ fn refused(e: SealError) -> CommandError {
     CommandError::Message(e.to_string())
 }
 
-#[tauri::command]
-pub async fn encryption_status(state: State<'_, AppState>) -> Answer<Status> {
-    status(&state).await
+pub async fn encryption_status(state: &AppState) -> Answer<Status> {
+    status(state).await
 }
 
 pub async fn status(state: &AppState) -> Answer<Status> {
@@ -107,9 +105,8 @@ async fn reseal(state: &AppState) -> Answer<Vec<String>> {
 }
 
 /// Turns encryption on with a new passphrase, and returns the recovery code.
-#[tauri::command]
-pub async fn encryption_enable(state: State<'_, AppState>, passphrase: String) -> Answer<Enabled> {
-    enable(&state, passphrase, Kdf::STANDARD).await
+pub async fn encryption_enable(state: &AppState, passphrase: String) -> Answer<Enabled> {
+    enable(state, passphrase, Kdf::STANDARD).await
 }
 
 pub async fn enable(state: &AppState, passphrase: String, kdf: Kdf) -> Answer<Enabled> {
@@ -145,9 +142,8 @@ pub async fn enable(state: &AppState, passphrase: String, kdf: Kdf) -> Answer<En
 }
 
 /// Unlocks this machine with the passphrase or the recovery code.
-#[tauri::command]
-pub async fn encryption_unlock(state: State<'_, AppState>, secret: String) -> Answer<bool> {
-    unlock(&state, secret).await
+pub async fn encryption_unlock(state: &AppState, secret: String) -> Answer<bool> {
+    unlock(state, secret).await
 }
 
 pub async fn unlock(state: &AppState, secret: String) -> Answer<bool> {
@@ -183,12 +179,8 @@ pub async fn unlock(state: &AppState, secret: String) -> Answer<bool> {
 
 /// Turns encryption off, after checking the passphrase, and rewrites
 /// everything plain.
-#[tauri::command]
-pub async fn encryption_disable(
-    state: State<'_, AppState>,
-    passphrase: String,
-) -> Answer<Vec<String>> {
-    disable(&state, passphrase).await
+pub async fn encryption_disable(state: &AppState, passphrase: String) -> Answer<Vec<String>> {
+    disable(state, passphrase).await
 }
 
 pub async fn disable(state: &AppState, passphrase: String) -> Answer<Vec<String>> {

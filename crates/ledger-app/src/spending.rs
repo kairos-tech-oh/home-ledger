@@ -8,7 +8,6 @@ use ledger_math::calendar::Day;
 use ledger_math::spending::{self, Charge, Group, Report, Status};
 use rust_decimal::prelude::ToPrimitive;
 use serde::Serialize;
-use tauri::State;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,9 +71,8 @@ pub struct SpendingView {
 
 /// `today` and `offset_minutes` come from the window, so periods end on the
 /// person's own day and settlements land on it.
-#[tauri::command]
 pub async fn spending(
-    state: State<'_, AppState>,
+    state: &AppState,
     period: String,
     from: String,
     to: String,
@@ -96,11 +94,7 @@ pub async fn spending(
     Ok(spending_view(&doc, window, report, family))
 }
 
-#[tauri::command]
-pub async fn set_family_members(
-    state: State<'_, AppState>,
-    names: Vec<String>,
-) -> Answer<Vec<String>> {
+pub async fn set_family_members(state: &AppState, names: Vec<String>) -> Answer<Vec<String>> {
     Ok(state.set_family_members(&names).await?)
 }
 

@@ -30,7 +30,7 @@ fetch treats a flat zero as "never heard of it" rather than "worth nothing".
 cargo test -p ledger-writer a_holding_priced_by_hand_is_never_overwritten_by_a_quote
 cargo test -p ledger-writer a_symbol_that_did_not_answer_keeps_its_last_price_and_is_flagged
 cargo test -p ledger-writer a_sweep_that_touched_nothing_is_refused_rather_than_logged
-cargo test -p home-ledger a_key_that_is_not_one_is_refused_before_it_becomes_a_header
+cargo test -p ledger-app a_key_that_is_not_one_is_refused_before_it_becomes_a_header
 ```
 
 ## Depends On

@@ -28,7 +28,7 @@ cannot undo it.
 ## Check
 ```bash
 cargo test -p ledger-store sealed
-cargo test -p home-ledger encryption_tests
+cargo test -p ledger-app encryption_tests
 grep -q 'ledger_store::Sealed::wrap(build_store(first, secrets)?, vault.clone())' crates/ledger-config/src/lib.rs
 grep -q 'Outbox::sealed(places.outbox(), vault)' crates/ledger-config/src/lib.rs
 npm --prefix ui run check

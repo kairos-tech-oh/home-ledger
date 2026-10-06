@@ -6,6 +6,7 @@ members = [
     "crates/ledger-writer",
     "crates/ledger-store",
     "crates/ledger-config",
+    "crates/ledger-app",
     "src-tauri",
 ]
 
@@ -22,6 +23,7 @@ ledger-math = { path = "crates/ledger-math" }
 ledger-writer = { path = "crates/ledger-writer" }
 ledger-store = { path = "crates/ledger-store" }
 ledger-config = { path = "crates/ledger-config" }
+ledger-app = { path = "crates/ledger-app" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

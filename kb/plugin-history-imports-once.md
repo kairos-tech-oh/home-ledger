@@ -21,11 +21,11 @@ An import that duplicates or quietly drops entries corrupts the record it rescue
 
 ## Check
 ```bash
-cargo test -p home-ledger plugin_entries_keep_their_id_and_time_and_take_the_typed_machine
-cargo test -p home-ledger a_damaged_or_missing_file_is_reported
-cargo test -p home-ledger an_import_publishes_once_and_a_rerun_adds_nothing
-cargo test -p home-ledger entries_the_window_would_drop_are_refused_not_trimmed
-cargo test -p home-ledger a_preview_writes_nothing_on_a_fresh_or_unmigrated_machine
+cargo test -p ledger-app plugin_entries_keep_their_id_and_time_and_take_the_typed_machine
+cargo test -p ledger-app a_damaged_or_missing_file_is_reported
+cargo test -p ledger-app an_import_publishes_once_and_a_rerun_adds_nothing
+cargo test -p ledger-app entries_the_window_would_drop_are_refused_not_trimmed
+cargo test -p ledger-app a_preview_writes_nothing_on_a_fresh_or_unmigrated_machine
 ```
 
 ## Depends On

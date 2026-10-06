@@ -24,7 +24,7 @@ diverge, and merging two whole documents is not solvable.
 cargo test -p ledger-store edits_survive_the_primary_being_unreachable
 cargo test -p ledger-store a_refused_op_blocks_rather_than_dropping_the_queue
 cargo test -p ledger-store a_store_that_cannot_lock_is_refused_as_primary
-cargo test -p home-ledger an_unreachable_primary_queues_history_and_never_writes_a_mirror
+cargo test -p ledger-app an_unreachable_primary_queues_history_and_never_writes_a_mirror
 ```
 
 ## Depends On

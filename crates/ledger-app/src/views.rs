@@ -9,7 +9,6 @@ use crate::state::AppState;
 use ledger_domain::{Ledger, Money};
 use rust_decimal::Decimal;
 use serde::Serialize;
-use tauri::State;
 
 pub fn amount(value: Money) -> String {
     value.to_string()
@@ -359,8 +358,7 @@ pub struct LedgerView {
 }
 
 /// Everything the account and savings screens need, in one read.
-#[tauri::command]
-pub async fn ledger(state: State<'_, AppState>) -> Answer<LedgerView> {
+pub async fn ledger(state: &AppState) -> Answer<LedgerView> {
     let loaded = state.live().await.engine.load().await?;
     let doc = match &loaded.snapshot {
         Some(s) => ledger_writer::read(&s.body)?,
@@ -816,9 +814,8 @@ fn earners_of(doc: &Ledger) -> Vec<EarnerView> {
 }
 
 /// The audit log, newest first.
-#[tauri::command]
-pub async fn history(state: State<'_, AppState>) -> Answer<HistoryView> {
-    Ok(history_of(&state).await)
+pub async fn history(state: &AppState) -> Answer<HistoryView> {
+    Ok(history_of(state).await)
 }
 
 pub async fn history_of(state: &AppState) -> HistoryView {
@@ -901,8 +898,7 @@ pub struct ProjectionView {
     pub lines: Vec<ProjectionLineView>,
 }
 
-#[tauri::command]
-pub async fn projection(state: State<'_, AppState>) -> Answer<ProjectionView> {
+pub async fn projection(state: &AppState) -> Answer<ProjectionView> {
     let loaded = state.live().await.engine.load().await?;
     let doc = match &loaded.snapshot {
         Some(s) => ledger_writer::read(&s.body)?,

@@ -1,8 +1,8 @@
 //! Price history from Yahoo's chart endpoint: free, no key, unofficial.
 //! A failure here is reported, never fatal — the ledger's figures stand alone.
 
-use crate::commands::{Answer, CommandError};
-use crate::state::AppState;
+use ledger_app::AppState;
+use ledger_app::{Answer, CommandError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};

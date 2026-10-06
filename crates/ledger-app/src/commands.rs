@@ -9,7 +9,6 @@ use ledger_writer::import::ImportReport;
 use ledger_writer::{Op, WriteError};
 use serde::Serialize;
 use serde_json::Value;
-use tauri::State;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
@@ -62,8 +61,7 @@ pub struct Overview {
     pub loaded_from: String,
 }
 
-#[tauri::command]
-pub async fn overview(state: State<'_, AppState>) -> Answer<Overview> {
+pub async fn overview(state: &AppState) -> Answer<Overview> {
     let loaded = state.live().await.engine.load().await?;
     let ledger = match &loaded.snapshot {
         Some(s) => ledger_writer::read(&s.body)?,
@@ -86,9 +84,8 @@ pub async fn overview(state: State<'_, AppState>) -> Answer<Overview> {
 
 /// Make an edit. Queues it locally, then tries to land it on the primary —
 /// so an unreachable store slows the sync down, never the edit.
-#[tauri::command]
-pub async fn apply(state: State<'_, AppState>, op: Value) -> Answer<Option<Applied>> {
-    apply_value(&state, op).await
+pub async fn apply(state: &AppState, op: Value) -> Answer<Option<Applied>> {
+    apply_value(state, op).await
 }
 
 /// The same edit path, callable from inside the app rather than from the UI.
@@ -136,7 +133,7 @@ pub async fn apply_value(state: &AppState, op: Value) -> Answer<Option<Applied>>
         tracing::warn!(error = %e, "the change was made but not recorded in history");
     }
     if !matches!(sync, SyncState::Behind { .. }) {
-        tauri::async_runtime::spawn(crate::audit::share(
+        state.spawn(crate::audit::share(
             live.engine.primary().clone(),
             live.config.install.clone(),
             state.places.data_dir.clone(),
@@ -160,8 +157,7 @@ pub struct Applied {
 }
 
 /// What importing this file would do. Reads and validates, writes nothing.
-#[tauri::command]
-pub async fn import_preview(state: State<'_, AppState>, path: String) -> Answer<ImportPreview> {
+pub async fn import_preview(state: &AppState, path: String) -> Answer<ImportPreview> {
     let raw = tokio::fs::read(&path)
         .await
         .map_err(|e| CommandError::Message(format!("cannot read that file: {e}")))?;
@@ -185,12 +181,7 @@ pub async fn import_preview(state: State<'_, AppState>, path: String) -> Answer<
 /// Deliberately not an incremental edit: it does not queue in the outbox, so
 /// importing into a store that cannot be reached fails loudly instead of
 /// landing later, when nobody is expecting it.
-#[tauri::command]
-pub async fn import_apply(
-    state: State<'_, AppState>,
-    path: String,
-    replace: bool,
-) -> Answer<ImportReport> {
+pub async fn import_apply(state: &AppState, path: String, replace: bool) -> Answer<ImportReport> {
     let raw = tokio::fs::read(&path)
         .await
         .map_err(|e| CommandError::Message(format!("cannot read that file: {e}")))?;
@@ -233,19 +224,16 @@ pub struct ImportPreview {
     pub replaces: usize,
 }
 
-#[tauri::command]
-pub async fn stores(state: State<'_, AppState>) -> Answer<Vec<StoreStatus>> {
+pub async fn stores(state: &AppState) -> Answer<Vec<StoreStatus>> {
     Ok(state.live().await.engine.status().await)
 }
 
-#[tauri::command]
-pub async fn sync_state(state: State<'_, AppState>) -> Answer<SyncState> {
-    sync(&state).await
+pub async fn sync_state(state: &AppState) -> Answer<SyncState> {
+    sync(state).await
 }
 
-#[tauri::command]
-pub async fn flush(state: State<'_, AppState>) -> Answer<SyncState> {
-    sync(&state).await
+pub async fn flush(state: &AppState) -> Answer<SyncState> {
+    sync(state).await
 }
 
 pub async fn sync(state: &AppState) -> Answer<SyncState> {

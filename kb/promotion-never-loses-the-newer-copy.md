@@ -22,10 +22,10 @@ unreadable source of truth means nobody knows what is being given up.
 
 ## Check
 ```bash
-cargo test -p home-ledger a_backup_that_is_behind_is_brought_up_to_date_first
-cargo test -p home-ledger two_copies_that_diverged_are_refused
-cargo test -p home-ledger promoting_blind_is_refused_until_it_is_asked_for_twice
-cargo test -p home-ledger a_fast_forward_is_only_ever_proposed_when_the_copies_are_related
+cargo test -p ledger-app a_backup_that_is_behind_is_brought_up_to_date_first
+cargo test -p ledger-app two_copies_that_diverged_are_refused
+cargo test -p ledger-app promoting_blind_is_refused_until_it_is_asked_for_twice
+cargo test -p ledger-app a_fast_forward_is_only_ever_proposed_when_the_copies_are_related
 ```
 
 ## Depends On

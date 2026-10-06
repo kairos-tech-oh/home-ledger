@@ -1471,6 +1471,7 @@ name = "home-ledger"
 version = "0.2.7"
 dependencies = [
  "async-trait",
+ "ledger-app",
  "ledger-config",
  "ledger-domain",
  "ledger-math",
@@ -2021,6 +2022,28 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "ledger-app"
+version = "0.2.7"
+dependencies = [
+ "async-trait",
+ "ledger-config",
+ "ledger-domain",
+ "ledger-math",
+ "ledger-store",
+ "ledger-writer",
+ "reqwest 0.12.28",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "time",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "ledger-config"

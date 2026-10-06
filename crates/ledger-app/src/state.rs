@@ -8,7 +8,6 @@ use ledger_config::{Config, Keychain, Places, Secrets, SetupError, build_engine,
 use ledger_store::{Engine, Vault};
 use ledger_writer::Writer;
 use std::sync::Arc;
-use tauri::{AppHandle, Runtime};
 use tokio::sync::{RwLock, RwLockReadGuard};
 
 /// Everything that is replaced together when the configuration changes.
@@ -29,6 +28,37 @@ pub struct AppState {
     /// Seals and opens everything stored. One for the life of the app, so a
     /// reconfiguration keeps the unlock.
     pub vault: Arc<Vault>,
+    /// Which program this is, stamped on every change it makes.
+    pub client: Client,
+    background: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>,
+}
+
+/// Which program is making changes, for the change history.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Client {
+    Desktop,
+    /// The `hl` command line, with the label a script gave itself, if any.
+    Cli {
+        via: String,
+    },
+    Mobile,
+}
+
+impl Client {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Client::Desktop => "desktop",
+            Client::Cli { .. } => "cli",
+            Client::Mobile => "mobile",
+        }
+    }
+
+    fn via(&self) -> String {
+        match self {
+            Client::Cli { via } => ledger_domain::plain(via, 60),
+            _ => String::new(),
+        }
+    }
 }
 
 /// Where the data key is kept in the keychain.
@@ -50,14 +80,27 @@ pub fn kept_key(secrets: &dyn Secrets, key_id: &str) -> Option<ledger_store::sea
 }
 
 impl AppState {
-    /// Builds whatever is configured. A first run gets a working local ledger
-    /// with setup still marked undone, so the app offers the choice rather
-    /// than assuming local-only was deliberate.
-    pub fn bootstrap<R: Runtime>(_app: &AppHandle<R>) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::headless()
+    /// Waits for the work handed to the background, such as publishing
+    /// history after an edit. The desktop app never needs to; the command
+    /// line does before it exits, so a script never quits mid-upload.
+    pub async fn finish_background(&self) {
+        let handles: Vec<_> = std::mem::take(&mut *self.background.lock().unwrap());
+        for handle in handles {
+            let _ = handle.await;
+        }
     }
 
-    pub fn headless() -> Result<Self, Box<dyn std::error::Error>> {
+    /// Runs work in the background, kept so [`Self::finish_background`] can
+    /// wait for it.
+    pub fn spawn(&self, work: impl std::future::Future<Output = ()> + Send + 'static) {
+        let handle = tokio::spawn(work);
+        let mut held = self.background.lock().unwrap();
+        held.retain(|h| !h.is_finished());
+        held.push(handle);
+    }
+
+    /// The installed app's own setup, as the given client.
+    pub fn headless(client: Client) -> Result<Self, Box<dyn std::error::Error>> {
         let keychain = Keychain::new();
         let keychain_available = keychain.available();
         if !keychain_available {
@@ -68,7 +111,8 @@ impl AppState {
         } else {
             Arc::new(ledger_config::secrets::InMemory::default())
         };
-        Self::open(
+        Self::open_as(
+            client,
             Places::discover()?,
             secrets,
             keychain_available,
@@ -76,7 +120,24 @@ impl AppState {
         )
     }
 
+    /// As the desktop app: what the tests use.
     pub fn open(
+        places: Places,
+        secrets: Arc<dyn Secrets>,
+        keychain_available: bool,
+        plugin_year: impl FnOnce() -> Option<i32>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::open_as(
+            Client::Desktop,
+            places,
+            secrets,
+            keychain_available,
+            plugin_year,
+        )
+    }
+
+    pub fn open_as(
+        client: Client,
         places: Places,
         secrets: Arc<dyn Secrets>,
         keychain_available: bool,
@@ -115,7 +176,7 @@ impl AppState {
             vault.set(true, kept_key(secrets.as_ref(), id));
         }
 
-        let live = build_live(&config, &places, secrets.as_ref(), &vault)?;
+        let live = build_live(&config, &places, secrets.as_ref(), &vault, &client)?;
         tracing::info!(
             dir = %places.data_dir.display(),
             stores = config.stores.len(),
@@ -128,6 +189,8 @@ impl AppState {
             secrets,
             keychain_available,
             vault,
+            client,
+            background: std::sync::Mutex::new(Vec::new()),
         })
     }
 
@@ -192,7 +255,13 @@ impl AppState {
     /// not be saved, or the app fails to start next time and the person has to
     /// edit JSON to recover.
     pub async fn reconfigure(&self, config: Config) -> Result<(), SetupError> {
-        let rebuilt = build_live(&config, &self.places, self.secrets.as_ref(), &self.vault)?;
+        let rebuilt = build_live(
+            &config,
+            &self.places,
+            self.secrets.as_ref(),
+            &self.vault,
+            &self.client,
+        )?;
         self.places.save_config(&config)?;
         *self.live.write().await = rebuilt;
         tracing::info!(stores = config.stores.len(), "configuration replaced");
@@ -205,8 +274,15 @@ fn build_live(
     places: &Places,
     secrets: &dyn Secrets,
     vault: &Arc<Vault>,
+    client: &Client,
 ) -> Result<Live, SetupError> {
-    let writer = Arc::new(Writer::new(&config.device));
+    let writer = Arc::new(Writer::attributed(ledger_writer::Attribution {
+        device: config.device.clone(),
+        client: client.name().into(),
+        install: config.install.clone(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        via: client.via(),
+    }));
     let engine = build_engine(config, places, secrets, writer.clone(), vault.clone())?;
     Ok(Live {
         engine,
@@ -292,9 +368,11 @@ mod tests {
         };
         let secrets = ledger_config::secrets::InMemory::default();
         let mut config = starting_config(&places, &device_name());
-        let before = build_live(&config, &places, &secrets, &Vault::new()).unwrap();
+        let before =
+            build_live(&config, &places, &secrets, &Vault::new(), &Client::Desktop).unwrap();
         config.device = machine_name(" Laptop ").unwrap();
-        let after = build_live(&config, &places, &secrets, &Vault::new()).unwrap();
+        let after =
+            build_live(&config, &places, &secrets, &Vault::new(), &Client::Desktop).unwrap();
 
         let op = ledger_writer::Op::TypeAdd {
             list: ledger_writer::TypeList::Budget,

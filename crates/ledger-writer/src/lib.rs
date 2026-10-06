@@ -222,16 +222,44 @@ pub struct Priced {
     pub price: Money,
 }
 
+/// Who is making changes, stamped on every audit entry.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Attribution {
+    /// The install's name for itself.
+    pub device: String,
+    /// "desktop", "cli" or "mobile".
+    pub client: String,
+    /// The install's permanent id.
+    pub install: String,
+    pub version: String,
+    /// A script's label for itself, from `--via`.
+    pub via: String,
+}
+
 /// Applies ops to a document. Holds no state, so it can be shared freely.
 #[derive(Default)]
 pub struct Writer {
     pub device: String,
+    pub by: Attribution,
 }
 
 impl Writer {
+    /// Named only by device: for tests and tools that are no particular client.
     pub fn new(device: impl Into<String>) -> Self {
+        let device = device.into();
         Self {
-            device: device.into(),
+            by: Attribution {
+                device: device.clone(),
+                ..Default::default()
+            },
+            device,
+        }
+    }
+
+    pub fn attributed(by: Attribution) -> Self {
+        Self {
+            device: by.device.clone(),
+            by,
         }
     }
 
@@ -281,6 +309,10 @@ impl Writer {
         entry.id = new_id();
         entry.op = op.into();
         entry.actor = self.device.clone();
+        entry.client = self.by.client.clone();
+        entry.install = self.by.install.clone();
+        entry.version = self.by.version.clone();
+        entry.via = self.by.via.clone();
         entry.at = now_iso();
         entry
     }

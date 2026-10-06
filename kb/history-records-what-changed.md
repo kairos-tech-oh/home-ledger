@@ -22,12 +22,12 @@ never be a reason to refuse a real edit.
 
 ## Check
 ```bash
-cargo test -p home-ledger an_unreadable_file_does_not_block_writing_history
-cargo test -p home-ledger entries_older_than_the_window_are_dropped
-cargo test -p home-ledger the_newest_are_kept_when_there_are_too_many
-cargo test -p home-ledger a_date_survives_a_round_trip_through_the_epoch
-cargo test -p home-ledger an_unreachable_primary_queues_history_and_never_writes_a_mirror
-cargo test -p home-ledger a_damaged_history_from_another_machine_is_skipped_and_reported
+cargo test -p ledger-app an_unreadable_file_does_not_block_writing_history
+cargo test -p ledger-app entries_older_than_the_window_are_dropped
+cargo test -p ledger-app the_newest_are_kept_when_there_are_too_many
+cargo test -p ledger-app a_date_survives_a_round_trip_through_the_epoch
+cargo test -p ledger-app an_unreachable_primary_queues_history_and_never_writes_a_mirror
+cargo test -p ledger-app a_damaged_history_from_another_machine_is_skipped_and_reported
 ```
 
 ## Depends On

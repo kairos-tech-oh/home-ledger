@@ -29,7 +29,7 @@ emergency bucket.
 ## Check
 ```bash
 cargo test -p ledger-math planning
-cargo test -p home-ledger planning
+cargo test -p ledger-app planning
 npm --prefix ui run check
 ```
 

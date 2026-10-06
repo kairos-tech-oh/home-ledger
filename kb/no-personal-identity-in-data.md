@@ -20,8 +20,8 @@ a person's real name, so defaulting to the hostname publishes it.
 
 ## Check
 ```bash
-! sed '/#\[cfg(test)\]/,$d' src-tauri/src/state.rs | grep -qE 'COMPUTERNAME|HOSTNAME'
-cargo test -p home-ledger the_device_name_never_comes_from_the_environment
+! sed '/#\[cfg(test)\]/,$d' crates/ledger-app/src/state.rs | grep -qE 'COMPUTERNAME|HOSTNAME'
+cargo test -p ledger-app the_device_name_never_comes_from_the_environment
 ```
 
 ## Depends On

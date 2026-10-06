@@ -31,7 +31,7 @@ default every time it was built, would silently undo edits made elsewhere.
 cargo test -p ledger-domain dashboard
 cargo test -p ledger-writer dashboard
 cargo test -p ledger-math dashboard
-cargo test -p home-ledger dashboard
+cargo test -p ledger-app dashboard
 npm --prefix ui run check
 ```
 

@@ -8,7 +8,6 @@ use ledger_writer::{Op, Priced};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use std::str::FromStr;
-use tauri::State;
 
 /// The id the key is filed under. Not a store, but the keychain is keyed the
 /// same way and one safe place is better than two.
@@ -42,8 +41,7 @@ fn clean_key(raw: &str) -> Option<String> {
     usable.then_some(key)
 }
 
-#[tauri::command]
-pub async fn save_api_key(state: State<'_, AppState>, key: String) -> Answer<bool> {
+pub async fn save_api_key(state: &AppState, key: String) -> Answer<bool> {
     let Some(key) = clean_key(&key) else {
         return Err(CommandError::Message(
             "that does not look like a Finnhub key".into(),
@@ -53,15 +51,13 @@ pub async fn save_api_key(state: State<'_, AppState>, key: String) -> Answer<boo
     Ok(true)
 }
 
-#[tauri::command]
-pub async fn forget_api_key(state: State<'_, AppState>) -> Answer<bool> {
+pub async fn forget_api_key(state: &AppState) -> Answer<bool> {
     state.secrets.forget(KEY_ID)?;
     Ok(false)
 }
 
 /// Whether a key is stored. Never the key itself.
-#[tauri::command]
-pub async fn has_api_key(state: State<'_, AppState>) -> Answer<bool> {
+pub async fn has_api_key(state: &AppState) -> Answer<bool> {
     Ok(matches!(
         state.secrets.get(KEY_ID),
         Ok(Some(Secret::ApiKey { .. }))
@@ -114,8 +110,7 @@ fn urlencode(raw: &str) -> String {
 }
 
 /// Price every holding that has a symbol and is not priced by hand.
-#[tauri::command]
-pub async fn refresh_prices(state: State<'_, AppState>) -> Answer<Refreshed> {
+pub async fn refresh_prices(state: &AppState) -> Answer<Refreshed> {
     let Ok(Some(Secret::ApiKey { key })) = state.secrets.get(KEY_ID) else {
         return Err(CommandError::Message(
             "no Finnhub key is stored; add one in Storage".into(),
@@ -179,7 +174,7 @@ pub async fn refresh_prices(state: State<'_, AppState>) -> Answer<Refreshed> {
     // One op for the sweep, through the ordinary edit path: it re-reads the
     // primary first, so an edit made while this was on the network survives.
     crate::commands::apply_value(
-        &state,
+        state,
         serde_json::to_value(Op::PriceHoldings { priced, stale })?,
     )
     .await?;

@@ -29,8 +29,8 @@ taken from a copy that may be behind would record the wrong figure permanently.
 ## Check
 ```bash
 cargo test -p ledger-math snapshots
-cargo test -p home-ledger snapshots
-grep -q 'if !loaded.stale {' src-tauri/src/snapshots.rs
+cargo test -p ledger-app snapshots
+grep -q 'if !loaded.stale {' crates/ledger-app/src/snapshots.rs
 npm --prefix ui run check
 ```
 

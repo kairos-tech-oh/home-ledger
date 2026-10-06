@@ -8,7 +8,6 @@ use ledger_domain::records::Reconciliation;
 use ledger_writer::bank_csv::{self, Mapping, Transaction};
 use serde::Serialize;
 use std::collections::HashMap;
-use tauri::State;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -112,9 +111,8 @@ pub fn preview(
 
 /// Reads an export against one statement. `mapping` is the person's choice of
 /// columns and sign, when the guess was wrong.
-#[tauri::command]
 pub async fn transactions_preview(
-    state: State<'_, AppState>,
+    state: &AppState,
     id: String,
     text: String,
     mapping: Option<Mapping>,

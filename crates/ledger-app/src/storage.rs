@@ -10,7 +10,6 @@ use crate::state::AppState;
 use ledger_config::{Secret, StoreConfig};
 use ledger_store::{Document, Expect, Relation, oauth};
 use serde::Serialize;
-use tauri::State;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,8 +30,7 @@ pub struct Setup {
 }
 
 /// What is configured. Never includes a secret: there is no field for one.
-#[tauri::command]
-pub async fn setup(state: State<'_, AppState>) -> Answer<Setup> {
+pub async fn setup(state: &AppState) -> Answer<Setup> {
     let config = state.config().await;
     Ok(Setup {
         problems: config.problems(),
@@ -47,7 +45,6 @@ pub async fn setup(state: State<'_, AppState>) -> Answer<Setup> {
 
 /// Check settings and credentials before committing to them, so a typo in a
 /// bucket name is caught while the person is still looking at it.
-#[tauri::command]
 pub async fn test_store(store: StoreConfig, secret: Option<Secret>) -> Answer<String> {
     // Built against a throwaway secret store, so a failed test leaves nothing
     // behind in the keychain.
@@ -69,9 +66,8 @@ pub async fn test_store(store: StoreConfig, secret: Option<Secret>) -> Answer<St
 ///
 /// A new store joins as a backup. Making it the source of truth is
 /// [`promote_store`], which is a separate decision because it moves data.
-#[tauri::command]
 pub async fn save_store(
-    state: State<'_, AppState>,
+    state: &AppState,
     store: StoreConfig,
     secret: Option<Secret>,
 ) -> Answer<Setup> {
@@ -112,12 +108,7 @@ pub struct PromoteReport {
 /// promotion never loses what the old one held. If the two have genuinely
 /// diverged, or the old one cannot be read at all, this refuses unless the
 /// caller says to go ahead anyway.
-#[tauri::command]
-pub async fn promote_store(
-    state: State<'_, AppState>,
-    id: String,
-    force: bool,
-) -> Answer<PromoteReport> {
+pub async fn promote_store(state: &AppState, id: String, force: bool) -> Answer<PromoteReport> {
     let config = state.config().await;
 
     let Some(candidate) = config.find(&id).cloned() else {
@@ -194,8 +185,7 @@ pub async fn promote_store(
 
 /// Forget a store. The data is left where it is — deleting from an account of
 /// yours is not this app's decision to make.
-#[tauri::command]
-pub async fn remove_store(state: State<'_, AppState>, id: String) -> Answer<Setup> {
+pub async fn remove_store(state: &AppState, id: String) -> Answer<Setup> {
     let mut config = state.config().await;
     let gone = config
         .remove(&id)
@@ -215,8 +205,7 @@ pub async fn remove_store(state: State<'_, AppState>, id: String) -> Answer<Setu
 }
 
 /// Rename this machine, as it appears in the audit log.
-#[tauri::command]
-pub async fn rename_device(state: State<'_, AppState>, name: String) -> Answer<Setup> {
+pub async fn rename_device(state: &AppState, name: String) -> Answer<Setup> {
     let Some(name) = crate::state::machine_name(&name) else {
         return Err(CommandError::Message("this machine needs a name".into()));
     };
@@ -226,11 +215,7 @@ pub async fn rename_device(state: State<'_, AppState>, name: String) -> Answer<S
     setup(state).await
 }
 
-#[tauri::command]
-pub async fn set_retirement_target_year(
-    state: State<'_, AppState>,
-    year: Option<i32>,
-) -> Answer<Setup> {
+pub async fn set_retirement_target_year(state: &AppState, year: Option<i32>) -> Answer<Setup> {
     let this_year = crate::clock::year_and_month().0;
     let kept = crate::state::target_year(year, this_year);
     if year.is_some() && kept.is_none() {
@@ -245,8 +230,7 @@ pub async fn set_retirement_target_year(
 
 /// How see-through the window is. Clamped rather than refused, because an
 /// unreadable window is worse than an ignored setting.
-#[tauri::command]
-pub async fn set_opacity(state: State<'_, AppState>, value: f64) -> Answer<Setup> {
+pub async fn set_opacity(state: &AppState, value: f64) -> Answer<Setup> {
     let mut config = state.config().await;
     config.opacity = value;
     // Read back through the clamp, so what is stored is what will be used.
@@ -256,8 +240,7 @@ pub async fn set_opacity(state: State<'_, AppState>, value: f64) -> Answer<Setup
 }
 
 /// Mark first-run setup as done, so the app stops offering it.
-#[tauri::command]
-pub async fn finish_setup(state: State<'_, AppState>) -> Answer<Setup> {
+pub async fn finish_setup(state: &AppState) -> Answer<Setup> {
     let mut config = state.config().await;
     config.setup_complete = true;
     state.reconfigure(config).await?;
@@ -474,9 +457,8 @@ pub struct Connected {
 /// Opens the browser, waits on a loopback port for the code to come back,
 /// trades it for a refresh token, and keeps that in the keychain. The store
 /// joins as a backup; making it the source of truth is a separate decision.
-#[tauri::command]
 pub async fn connect_drive(
-    state: State<'_, AppState>,
+    state: &AppState,
     client_id: String,
     file_name: String,
     label: String,

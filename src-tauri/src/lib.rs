@@ -1,32 +1,15 @@
-//! The desktop shell. Owns no rules: it wires the store engine and the math
-//! to a window, and every number it hands the UI comes from `ledger-math`.
+//! The desktop shell. Owns no rules: every figure and every edit comes from
+//! `ledger-app`, shared with the `hl` command line; this crate puts a window
+//! on it, and adds what only a window needs (price charts, self-updating).
 
-mod audit;
-mod clock;
-mod commands;
-mod dashboard;
-mod encryption;
-#[cfg(test)]
-mod encryption_tests;
-#[cfg(test)]
-mod history_sync_tests;
+mod bridge;
 mod market;
-mod planning;
-mod plugin_history;
-mod quotes;
-mod sealed_file;
-mod snapshots;
-mod spending;
-mod state;
-mod storage;
-mod transactions;
 mod updates;
-mod views;
 
-pub use state::AppState;
+pub use ledger_app::AppState;
 
 pub fn import_plugin_history(args: &[String]) -> i32 {
-    plugin_history::run_cli(args)
+    ledger_app::plugin_history::run_cli(args)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -34,7 +17,7 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "home_ledger=info,ledger_store=info".into()),
+                .unwrap_or_else(|_| "home_ledger=info,ledger_app=info,ledger_store=info".into()),
         )
         .init();
 
@@ -44,52 +27,52 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::Pending::default())
         .setup(|app| {
-            let state = AppState::bootstrap(app.handle())?;
+            let state = AppState::headless(ledger_app::Client::Desktop)?;
             app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::overview,
-            commands::stores,
-            commands::sync_state,
-            commands::flush,
-            commands::apply,
-            commands::import_preview,
-            commands::import_apply,
-            storage::setup,
-            storage::test_store,
-            storage::save_store,
-            storage::promote_store,
-            storage::remove_store,
-            storage::rename_device,
-            storage::set_retirement_target_year,
-            storage::finish_setup,
-            storage::set_opacity,
-            storage::connect_drive,
-            views::ledger,
-            views::history,
-            views::projection,
-            planning::planning,
-            spending::spending,
-            spending::set_family_members,
-            dashboard::dashboard,
-            snapshots::take_snapshot,
-            snapshots::plugin_snapshots_path,
-            snapshots::snapshot_import_preview,
-            snapshots::snapshot_import,
+            bridge::overview,
+            bridge::stores,
+            bridge::sync_state,
+            bridge::flush,
+            bridge::apply,
+            bridge::import_preview,
+            bridge::import_apply,
+            bridge::setup,
+            bridge::test_store,
+            bridge::save_store,
+            bridge::promote_store,
+            bridge::remove_store,
+            bridge::rename_device,
+            bridge::set_retirement_target_year,
+            bridge::finish_setup,
+            bridge::set_opacity,
+            bridge::connect_drive,
+            bridge::ledger,
+            bridge::history,
+            bridge::projection,
+            bridge::planning,
+            bridge::spending,
+            bridge::set_family_members,
+            bridge::dashboard,
+            bridge::take_snapshot,
+            bridge::plugin_snapshots_path,
+            bridge::snapshot_import_preview,
+            bridge::snapshot_import,
+            bridge::transactions_preview,
+            bridge::encryption_status,
+            bridge::encryption_enable,
+            bridge::encryption_unlock,
+            bridge::encryption_disable,
+            bridge::refresh_prices,
+            bridge::save_api_key,
+            bridge::forget_api_key,
+            bridge::has_api_key,
+            market::holding_detail,
             updates::update_check,
             updates::update_install,
             updates::app_version,
-            encryption::encryption_status,
-            encryption::encryption_enable,
-            encryption::encryption_unlock,
-            encryption::encryption_disable,
-            transactions::transactions_preview,
-            market::holding_detail,
-            quotes::refresh_prices,
-            quotes::save_api_key,
-            quotes::forget_api_key,
-            quotes::has_api_key,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start Home Ledger");

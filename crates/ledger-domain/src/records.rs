@@ -467,7 +467,22 @@ pub struct AuditEntry {
     pub subject: String,
     pub name: String,
     pub op: String,
+    /// The install's own name for itself: "Laptop", "Office PC", "Basement Pi".
     pub actor: String,
+    /// Which program made the change: "desktop", "cli" or "mobile". Empty on
+    /// entries written before this was recorded, or imported from the plugin.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub client: String,
+    /// The install that made it: a permanent id, unchanged by a rename, so two
+    /// machines given the same name are still told apart.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub install: String,
+    /// The version of the app that made it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub version: String,
+    /// A label a script gave itself with `--via`, such as "nightly-import".
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub via: String,
     pub amount: Option<Money>,
     #[serde(default)]
     pub changes: Vec<AuditChange>,

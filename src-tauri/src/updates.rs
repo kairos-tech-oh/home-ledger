@@ -3,7 +3,7 @@
 //! holds. The updater checks that signature against the public key built into
 //! this binary, so an installer that key did not sign is never run.
 
-use crate::commands::{Answer, CommandError};
+use ledger_app::{Answer, CommandError};
 use serde::Serialize;
 use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_updater::{Update, UpdaterExt};

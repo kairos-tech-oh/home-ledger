@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::State;
 
 const FOLDER: &str = "snapshots";
 const PUBLISH_ATTEMPTS: usize = 4;
@@ -178,7 +177,7 @@ async fn publish(slot: &dyn Store, local: &[Point]) -> Result<(), StoreError> {
 
 async fn share_in_background(state: &AppState) {
     let (primary, install) = state.primary_and_install().await;
-    tauri::async_runtime::spawn(share(
+    state.spawn(share(
         primary,
         install,
         state.places.data_dir.clone(),
@@ -191,8 +190,7 @@ async fn share_in_background(state: &AppState) {
 ///
 /// Not from a stale copy: a mirror read while the source of truth was away
 /// may be behind, and a point taken from it would say so for good.
-#[tauri::command]
-pub async fn take_snapshot(state: State<'_, AppState>, today: String) -> Answer<bool> {
+pub async fn take_snapshot(state: &AppState, today: String) -> Answer<bool> {
     let Some(day) = Day::parse(&today) else {
         return Err(CommandError::Message("today must be yyyy-mm-dd".into()));
     };
@@ -214,7 +212,7 @@ pub async fn take_snapshot(state: State<'_, AppState>, today: String) -> Answer<
             took = true;
         }
     }
-    share_in_background(&state).await;
+    share_in_background(state).await;
     Ok(took)
 }
 
@@ -233,7 +231,6 @@ pub struct SnapshotImport {
 }
 
 /// Where the plugin keeps its snapshots on this machine, if it ever ran here.
-#[tauri::command]
 pub async fn plugin_snapshots_path() -> Answer<Option<String>> {
     Ok(ledger_config::plugin_file("snapshots.json")
         .filter(|p| p.is_file())
@@ -262,11 +259,7 @@ fn read_file(path: &str) -> Answer<Vec<Point>> {
 }
 
 /// What importing a file would add, without adding it.
-#[tauri::command]
-pub async fn snapshot_import_preview(
-    state: State<'_, AppState>,
-    path: String,
-) -> Answer<SnapshotImport> {
+pub async fn snapshot_import_preview(state: &AppState, path: String) -> Answer<SnapshotImport> {
     let incoming = read_file(&path)?;
     let held = state.points().read().await;
     let overlap = incoming
@@ -285,15 +278,14 @@ pub async fn snapshot_import_preview(
 
 /// Adds a file's points to this machine's, then shares them. Importing the
 /// same file twice adds nothing the second time.
-#[tauri::command]
-pub async fn snapshot_import(state: State<'_, AppState>, path: String) -> Answer<usize> {
+pub async fn snapshot_import(state: &AppState, path: String) -> Answer<usize> {
     let incoming = read_file(&path)?;
     let added = state
         .points()
         .absorb(&incoming)
         .await
         .map_err(|e| CommandError::Message(e.to_string()))?;
-    share_in_background(&state).await;
+    share_in_background(state).await;
     Ok(added)
 }
 

@@ -29,7 +29,7 @@ seems to owe.
 ```bash
 cargo test -p ledger-writer bank_csv
 cargo test -p ledger-writer import_tests
-cargo test -p home-ledger transactions
+cargo test -p ledger-app transactions
 grep -q 'let member = $state("All");' ui/src/ImportPanel.svelte
 npm --prefix ui run check
 ```

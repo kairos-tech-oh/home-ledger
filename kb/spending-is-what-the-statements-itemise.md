@@ -31,7 +31,7 @@ and 29 February as a month back from 31 March 2024.
 ```bash
 cargo test -p ledger-math spending
 cargo test -p ledger-math calendar
-cargo test -p home-ledger spending
+cargo test -p ledger-app spending
 cargo test -p ledger-config family_names
 npm --prefix ui run check
 ```

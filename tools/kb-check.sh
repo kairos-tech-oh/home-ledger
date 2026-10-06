@@ -28,7 +28,17 @@ for f in "${files[@]}"; do
   status=PASS
   failed=""
   for c in "${cmds[@]}"; do
-    if ! bash -c "$c" >/dev/null 2>&1; then
+    out=$(bash -c "$c" 2>&1)
+    code=$?
+    # A test filter that matches nothing still exits zero, so a claim whose
+    # tests were renamed or moved would pass while checking nothing. A cargo
+    # test that ran no test at all counts as a failure.
+    if [ $code -eq 0 ] && [[ "$c" == "cargo test"* ]] \
+      && ! grep -Eq 'test result: ok\. [1-9]' <<<"$out"; then
+      code=1
+      c="$c   (ran no tests)"
+    fi
+    if [ $code -ne 0 ]; then
       status=FAIL
       failed+="    x $c"$'\n'
     fi

@@ -19,9 +19,9 @@ nothing, and a stale one answers wrongly until the app restarts.
 
 ## Check
 ```bash
-cargo test -p home-ledger a_blank_machine_name_is_refused
-cargo test -p home-ledger a_machine_name_is_trimmed_and_capped
-cargo test -p home-ledger a_renamed_machine_signs_the_next_edit
+cargo test -p ledger-app a_blank_machine_name_is_refused
+cargo test -p ledger-app a_machine_name_is_trimmed_and_capped
+cargo test -p ledger-app a_renamed_machine_signs_the_next_edit
 grep -q 'Machine name' ui/src/Storage.svelte
 grep -q 'entry.actor' ui/src/History.svelte
 ```

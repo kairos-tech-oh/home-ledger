@@ -11,7 +11,6 @@ use ledger_math::dashboard as dash;
 use ledger_math::snapshots::{self, Point};
 use ledger_math::spending::{self, Status};
 use serde::Serialize;
-use tauri::State;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -206,9 +205,8 @@ pub struct SuggestedRefs {
     pub goals: Vec<String>,
 }
 
-#[tauri::command]
 pub async fn dashboard(
-    state: State<'_, AppState>,
+    state: &AppState,
     today: String,
     offset_minutes: i64,
 ) -> Answer<DashboardView> {
