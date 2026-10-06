@@ -16,6 +16,7 @@
   import NavMenu from "./NavMenu.svelte";
   import UpdateBanner from "./UpdateBanner.svelte";
   import UnlockScreen from "./UnlockScreen.svelte";
+  import NameThisComputer from "./NameThisComputer.svelte";
   import { encryption } from "./encryption";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
@@ -223,6 +224,9 @@
   {#if locked}
     <UnlockScreen onunlocked={load} />
   {:else}
+  {#if setup && setup.setupComplete && setup.deviceIsDefault}
+    <NameThisComputer {setup} onrenamed={(next) => (setup = next)} />
+  {/if}
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if overview?.stale}

@@ -553,6 +553,10 @@ export interface HistoryEntry {
   subject: string;
   name: string;
   actor: string;
+  client: string;
+  install: string;
+  version: string;
+  via: string;
   amount: string | null;
   changes: string[];
 }

@@ -307,6 +307,13 @@ pub fn machine_name(raw: &str) -> Option<String> {
 /// Deliberately not the hostname: machine names very often contain a person's
 /// real name, and this value is written into the document and synced to
 /// whatever store is configured. A neutral default is renamed in settings.
+/// Whether this install still has the name it was given by default, which
+/// says nothing about which machine it is: two laptops left as "Linux PC"
+/// look identical in the history.
+pub fn is_default_name(name: &str) -> bool {
+    ["Windows PC", "Mac", "Linux PC", "Phone"].contains(&name)
+}
+
 fn device_name() -> String {
     if cfg!(target_os = "windows") {
         "Windows PC".into()
@@ -320,6 +327,12 @@ fn device_name() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_names_given_by_default_are_known_as_defaults() {
+        assert!(is_default_name(&device_name()));
+        assert!(!is_default_name("Office PC"));
+    }
 
     #[test]
     fn the_device_name_never_comes_from_the_environment() {

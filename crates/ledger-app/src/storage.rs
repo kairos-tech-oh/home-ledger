@@ -16,6 +16,10 @@ use serde::Serialize;
 pub struct Setup {
     pub stores: Vec<StoreConfig>,
     pub device: String,
+    /// The name is still a default, so this install should be named.
+    pub device_is_default: bool,
+    /// The install's permanent id, which tells two same-named machines apart.
+    pub install: String,
     /// False means first-run setup has not been through, so the app offers it.
     pub setup_complete: bool,
     /// False means credentials cannot be kept on this machine. The UI must
@@ -36,6 +40,8 @@ pub async fn setup(state: &AppState) -> Answer<Setup> {
         problems: config.problems(),
         stores: config.stores.clone(),
         device: config.device.clone(),
+        device_is_default: crate::state::is_default_name(&config.device),
+        install: config.install.clone(),
         setup_complete: config.setup_complete,
         keychain_available: state.keychain_available,
         opacity: config.window_opacity(),

@@ -37,6 +37,8 @@ export interface Setup {
   problems: string[];
   opacity: number;
   retirementTargetYear: number | null;
+  deviceIsDefault: boolean;
+  install: string;
 }
 
 export interface PromoteReport {

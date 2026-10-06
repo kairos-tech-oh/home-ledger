@@ -841,6 +841,10 @@ pub async fn history_of(state: &AppState) -> HistoryView {
                 subject: entry.subject,
                 name: entry.name,
                 actor: entry.actor,
+                client: entry.client,
+                install: entry.install,
+                version: entry.version,
+                via: entry.via,
                 amount: maybe(entry.amount),
                 changes: entry
                     .changes
@@ -985,6 +989,11 @@ pub struct HistoryEntry {
     pub subject: String,
     pub name: String,
     pub actor: String,
+    /// "desktop", "cli", "mobile", "plugin", or empty on older entries.
+    pub client: String,
+    pub install: String,
+    pub version: String,
+    pub via: String,
     pub amount: Option<String>,
     pub changes: Vec<String>,
 }
