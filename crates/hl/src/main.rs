@@ -26,6 +26,7 @@ macro_rules! print {
     }};
 }
 
+mod alias;
 mod out;
 mod read;
 mod session;
@@ -92,6 +93,11 @@ enum Command {
     Unlock,
     /// Forget the key on this machine.
     Lock,
+    /// Make `ledger` a second name for hl, or stop.
+    Alias {
+        #[arg(value_parser = ["on", "off", "status"], default_value = "status")]
+        state: String,
+    },
 
     /// Net worth, assets, debts, and monthly income and budget.
     Summary,
@@ -336,6 +342,13 @@ async fn run(cli: Cli) -> Outcome {
         }
         Command::Unlock => return setup::unlock(&s).await,
         Command::Lock => return setup::lock(&s).await,
+        Command::Alias { state } => {
+            return match state.as_str() {
+                "on" => alias::set(&s, true),
+                "off" => alias::set(&s, false),
+                _ => alias::status(&s),
+            };
+        }
         _ => s.ready().await?,
     }
 
@@ -456,6 +469,7 @@ async fn run(cli: Cli) -> Outcome {
         | Command::Init { .. }
         | Command::Unlock
         | Command::Lock
+        | Command::Alias { .. }
         | Command::ImportHistory { .. } => unreachable!(),
     }
 }

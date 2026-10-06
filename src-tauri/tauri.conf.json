@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm --prefix ui run dev",
-    "beforeBuildCommand": "npm --prefix ui run build"
+    "beforeDevCommand": "node tools/release/stage-hl.mjs --debug && npm --prefix ui run dev",
+    "beforeBuildCommand": "node tools/release/stage-hl.mjs && npm --prefix ui run build"
   },
   "app": {
     "windows": [
@@ -44,7 +44,8 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "windows/hooks.nsh"
       }
     },
     "linux": {
@@ -54,7 +55,10 @@
           "libgtk-3-0"
         ]
       }
-    }
+    },
+    "externalBin": [
+      "binaries/hl"
+    ]
   },
   "plugins": {
     "updater": {
