@@ -77,7 +77,8 @@ fn keep(state: &AppState, key: &Key) -> bool {
 }
 
 /// Seals every copy of the ledger, the queued edits, and the local history
-/// and snapshots, then this machine's shared history and snapshot objects.
+/// and snapshots and bank connections, then this machine's shared history
+/// and snapshot objects.
 async fn reseal(state: &AppState) -> Answer<Vec<String>> {
     let skipped = state.live().await.engine.rewrite_all().await?;
     state
@@ -87,6 +88,10 @@ async fn reseal(state: &AppState) -> Answer<Vec<String>> {
         .map_err(|e| CommandError::Message(e.to_string()))?;
     state
         .points()
+        .reseal()
+        .await
+        .map_err(|e| CommandError::Message(e.to_string()))?;
+    crate::bank::banks(state)
         .reseal()
         .await
         .map_err(|e| CommandError::Message(e.to_string()))?;

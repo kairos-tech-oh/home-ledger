@@ -7,6 +7,7 @@
 //! them here, rather than in any one of those, is what makes the three agree.
 
 pub mod audit;
+pub mod bank;
 pub mod clock;
 pub mod commands;
 pub mod dashboard;

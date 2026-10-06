@@ -376,6 +376,14 @@ pub struct ReconLine {
     /// Empty means everyday spending, paid out of checking.
     pub bucket_id: String,
     pub notes: String,
+    /// The bank connection's id for the transaction this charge came from,
+    /// so fetching it again never adds it twice. Absent for a typed charge.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub bank_ref: String,
+    /// The bank's own description ("KROGER #920 COLUMBUS OH"), kept when the
+    /// label is the cleaner merchant name ("Kroger").
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub bank_text: String,
 }
 
 /// What a settle actually moved, kept so an undo can return it exactly.

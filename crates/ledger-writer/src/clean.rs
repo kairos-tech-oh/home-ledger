@@ -350,7 +350,23 @@ pub(crate) fn recon_line(mut record: ReconLine) -> Option<ReconLine> {
     record.spent_on = iso_date(&record.spent_on);
     record.bucket_id = valid_id(&record.bucket_id);
     record.notes = plain(&record.notes, LINE_NOTES_MAX);
+    record.bank_ref = bank_ref(&record.bank_ref);
+    record.bank_text = plain(&record.bank_text, BANK_TEXT_MAX);
     Some(record)
+}
+
+/// The bank's own description is longer than a label but still one line.
+const BANK_TEXT_MAX: usize = 200;
+
+/// A bank's transaction id: Plaid's are about 37 letters and digits. Anything
+/// else is dropped rather than trusted as a key for matching.
+fn bank_ref(value: &str) -> String {
+    let ok = !value.is_empty()
+        && value.len() <= 100
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':'));
+    if ok { value.to_string() } else { String::new() }
 }
 
 fn applied_moves(rows: Vec<AppliedMove>, credit: bool) -> Vec<AppliedMove> {

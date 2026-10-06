@@ -6,7 +6,7 @@ use ledger_domain::Ledger;
 use ledger_domain::records::AuditEntry;
 use ledger_store::{PendingOp, StoreStatus, SyncState};
 use ledger_writer::import::ImportReport;
-use ledger_writer::{Op, WriteError};
+use ledger_writer::{Op, WriteError, Writer};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -109,6 +109,16 @@ pub async fn dry_run(state: &AppState, op: Value) -> Answer<Option<AuditEntry>> 
 /// The same edit path, callable from inside the app rather than from the UI.
 /// None means the edit was valid but had nothing to do, so nothing was queued.
 pub async fn apply_value(state: &AppState, op: Value) -> Answer<Option<Applied>> {
+    apply_as(state, op, "").await
+}
+
+/// The same edit, labelled in the history with what brought it in, such as
+/// "plaid", after any label the program already gave itself.
+pub async fn apply_via(state: &AppState, op: Value, via: &str) -> Answer<Option<Applied>> {
+    apply_as(state, op, via).await
+}
+
+async fn apply_as(state: &AppState, op: Value, via: &str) -> Answer<Option<Applied>> {
     // Parsed here rather than in the outbox so a malformed op is refused
     // before it is queued, not on every later flush.
     let parsed: Op = serde_json::from_value(op.clone())
@@ -126,7 +136,20 @@ pub async fn apply_value(state: &AppState, op: Value) -> Answer<Option<Applied>>
         Some(s) => ledger_writer::read(&s.body)?,
         None => Ledger::default(),
     };
-    let entry = match live.writer.apply(&mut ledger, &parsed) {
+    let relabelled;
+    let writer = if via.is_empty() {
+        live.writer.as_ref()
+    } else {
+        let mut by = live.writer.by.clone();
+        by.via = if by.via.is_empty() {
+            via.to_string()
+        } else {
+            format!("{} · {via}", by.via)
+        };
+        relabelled = Writer::attributed(by);
+        &relabelled
+    };
+    let entry = match writer.apply(&mut ledger, &parsed) {
         Ok(entry) => entry,
         Err(WriteError::Unchanged(_)) => return Ok(None),
         Err(e) => return Err(e.into()),

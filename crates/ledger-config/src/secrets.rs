@@ -52,6 +52,16 @@ pub enum Secret {
         /// but kept with the key so this machine can seal what it writes.
         envelope: String,
     },
+    /// The person's own Plaid keys, for bank connections. `environment` is
+    /// "sandbox" or "production".
+    PlaidKeys {
+        client_id: String,
+        secret: String,
+        environment: String,
+    },
+    /// The access token for one connected bank, which with the keys reads
+    /// that bank's accounts and transactions.
+    BankToken { access_token: String },
 }
 
 /// Somewhere credentials can be kept and fetched by store id.

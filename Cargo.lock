@@ -2157,6 +2157,7 @@ dependencies = [
  "ledger-writer",
  "reqwest 0.12.28",
  "rust_decimal",
+ "rust_decimal_macros",
  "serde",
  "serde_json",
  "tempfile",

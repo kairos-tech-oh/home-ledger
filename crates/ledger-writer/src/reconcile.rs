@@ -136,6 +136,23 @@ impl Writer {
         };
         let mut record = clean::reconciliation(from_json(supplied)?, keep, false)?;
 
+        // Where a charge came from is not something a form edits. A line kept
+        // through an edit keeps its bank link even when the client sending it
+        // knows nothing of bank links, so a re-fetch still recognises it.
+        if let Some(i) = existing {
+            let before = &ledger.reconciliations[i].lines;
+            for line in &mut record.lines {
+                if let Some(old) = before.iter().find(|o| o.id == line.id)
+                    && line.bank_ref.is_empty()
+                {
+                    line.bank_ref = old.bank_ref.clone();
+                    if line.bank_text.is_empty() {
+                        line.bank_text = old.bank_text.clone();
+                    }
+                }
+            }
+        }
+
         let card = card_account(&ledger.accounts, &record);
         if !record.card_account_id.is_empty() && card.is_none() {
             return refuse("choose an existing credit card account");
@@ -207,6 +224,16 @@ impl Writer {
         if ledger.reconciliations[i].status == "settled" {
             return refuse("a settled reconciliation is history; undo it to add to it");
         }
+        // A bank's transaction is added once, on whichever statement took it
+        // first. Enforced here, not only in the preview, so a script that
+        // imports twice, or two machines importing at once, add nothing twice.
+        let mut seen: std::collections::HashSet<String> = ledger
+            .reconciliations
+            .iter()
+            .flat_map(|r| r.lines.iter())
+            .filter(|l| !l.bank_ref.is_empty())
+            .map(|l| l.bank_ref.clone())
+            .collect();
         let mut lines = Vec::with_capacity(supplied.len());
         for raw in supplied {
             let mut line: ledger_domain::records::ReconLine = from_json(raw)?;
@@ -216,6 +243,9 @@ impl Writer {
                 line.bucket_id.clear();
             }
             if let Some(line) = clean::recon_line(line) {
+                if !line.bank_ref.is_empty() && !seen.insert(line.bank_ref.clone()) {
+                    continue;
+                }
                 lines.push(line);
             }
         }
@@ -1045,6 +1075,86 @@ mod import_tests {
             .is_err()
         );
         assert_eq!(ledger.reconciliations[0].lines.len(), 1);
+    }
+
+    #[test]
+    fn a_bank_transaction_is_added_once_wherever_it_already_is() {
+        let mut ledger = Ledger::default();
+        let first = statement(&mut ledger);
+        let charge = |r: &str| {
+            json!({ "label": "Kroger", "amount": "48.59", "spentOn": "2026-09-26",
+                    "bankRef": r, "bankText": "KROGER #920 COLUMBUS OH" })
+        };
+        apply(
+            &mut ledger,
+            json!({ "op": "reconcile-import", "id": first,
+                    "lines": [charge("txn-A"), charge("txn-A"), charge("bad ref!")] }),
+        )
+        .unwrap();
+        let lines = &ledger.reconciliations[0].lines;
+        assert_eq!(
+            lines.len(),
+            3,
+            "the repeat is dropped, the bad ref kept as a typed charge"
+        );
+        assert_eq!(lines[1].bank_ref, "txn-A");
+        assert_eq!(lines[1].bank_text, "KROGER #920 COLUMBUS OH");
+        assert!(lines[2].bank_ref.is_empty());
+
+        // Again, onto a second statement: already on the first, so nothing.
+        apply(
+            &mut ledger,
+            json!({ "op": "reconcile-set", "record": { "card": "Freedom", "balance": 5 } }),
+        )
+        .unwrap();
+        let second = ledger
+            .reconciliations
+            .iter()
+            .find(|r| r.card == "Freedom")
+            .unwrap()
+            .id
+            .clone();
+        let got = apply(
+            &mut ledger,
+            json!({ "op": "reconcile-import", "id": second, "lines": [charge("txn-A")] }),
+        );
+        assert!(matches!(got, Err(WriteError::Unchanged(_))));
+
+        // And the fields survive a write and a read.
+        let back = Ledger::from_bytes(&ledger.to_bytes().unwrap()).unwrap();
+        let kept = back.reconciliations.iter().find(|r| r.id == first).unwrap();
+        assert_eq!(kept.lines[1].bank_ref, "txn-A");
+        let typed = serde_json::to_value(&kept.lines[0]).unwrap();
+        assert!(typed.get("bankRef").is_none(), "absent on a typed charge");
+    }
+
+    #[test]
+    fn editing_a_statement_keeps_its_charges_bank_links() {
+        let mut ledger = Ledger::default();
+        let id = statement(&mut ledger);
+        apply(
+            &mut ledger,
+            json!({ "op": "reconcile-import", "id": id, "lines": [
+                { "label": "Kroger", "amount": "48.59", "bankRef": "txn-A", "bankText": "KROGER #920" }
+            ]}),
+        )
+        .unwrap();
+        // What the statement form sends: every line, none of the bank fields.
+        let lines: Vec<_> = ledger.reconciliations[0]
+            .lines
+            .iter()
+            .map(|l| json!({ "id": l.id, "label": l.label, "amount": l.amount, "member": "Yuki" }))
+            .collect();
+        apply(
+            &mut ledger,
+            json!({ "op": "reconcile-set", "id": id,
+                    "record": { "card": "Sapphire", "balance": 100, "lines": lines } }),
+        )
+        .unwrap();
+        let line = &ledger.reconciliations[0].lines[1];
+        assert_eq!(line.member, "Yuki", "the edit took");
+        assert_eq!(line.bank_ref, "txn-A");
+        assert_eq!(line.bank_text, "KROGER #920");
     }
 
     #[test]
