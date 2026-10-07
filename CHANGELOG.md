@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-07
+
 ### Fixed
 - **The Windows installer could erase your PATH.** On a PATH longer than 1024
   characters, installing or updating to 0.2.7 replaced the whole user PATH
