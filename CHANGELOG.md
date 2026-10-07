@@ -10,6 +10,15 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Changed
+- Every bucket says which account its money is kept in, and spending from a
+  bucket now takes the money out of that account too. A mortgage payment from
+  the Mortgage bucket lowers Fidelity Savings by the same amount, in one edit.
+  A move between buckets in different accounts moves the money between them.
+  Paydays, adding and setting a balance still change only buckets. The Buckets
+  screen shows each bucket's account and offers to set one for every bucket
+  without one. Also `hl bucket link`.
+
 ## [0.2.8] - 2026-10-07
 
 ### Fixed

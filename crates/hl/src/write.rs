@@ -42,16 +42,47 @@ pub enum BucketAction<'a> {
     Move { amount: &'a str, to: &'a str },
 }
 
+/// Keeps one bucket, or every bucket with no account yet, in an account.
+pub async fn bucket_link(s: &Session, bucket: Option<&str>, account: &str) -> Outcome {
+    let v = s.view().await?;
+    let a = find(&v.accounts, account, "account", |a| &a.id, |a| &a.name)?;
+    let ids: Vec<String> = match bucket {
+        Some(b) => vec![
+            find(&v.buckets, b, "bucket", |b| &b.id, |b| &b.name)?
+                .id
+                .clone(),
+        ],
+        None => v
+            .buckets
+            .iter()
+            .filter(|b| b.account_id.is_empty())
+            .map(|b| b.id.clone())
+            .collect(),
+    };
+    if ids.is_empty() {
+        println!("every bucket already says which account it is kept in");
+        return Ok(());
+    }
+    s.edit(json!({ "op": "buckets-link", "ids": ids, "accountId": a.id }))
+        .await
+}
+
 pub async fn bucket(s: &Session, bucket: &str, action: BucketAction<'_>, note: &str) -> Outcome {
     let v = s.view().await?;
     let b = find(&v.buckets, bucket, "bucket", |b| &b.id, |b| &b.name)?;
+    if matches!(action, BucketAction::Spend(_)) && b.account_id.is_empty() {
+        eprintln!(
+            "hl: {} doesn't say which account it is kept in, so no account changes; \
+             `hl bucket link \"{}\" --to <account>` sets one",
+            b.name, b.name
+        );
+    }
     let op = match action {
         BucketAction::Add(n) => json!({ "op": "bucket-adjust",
             "adjustments": [{ "id": b.id, "delta": amount(n)? }],
             "label": if note.is_empty() { "Added" } else { note } }),
-        BucketAction::Spend(n) => json!({ "op": "bucket-adjust",
-            "adjustments": [{ "id": b.id, "delta": format!("-{}", amount(n)?.trim_start_matches('-')) }],
-            "label": if note.is_empty() { "Spent" } else { note } }),
+        BucketAction::Spend(n) => json!({ "op": "bucket-spend", "id": b.id,
+            "amount": amount(n)?.trim_start_matches('-'), "label": note }),
         BucketAction::Set(n) => json!({ "op": "bucket-total", "id": b.id, "amount": amount(n)? }),
         BucketAction::Move { amount: n, to } => {
             let target = find(&v.buckets, to, "bucket", |b| &b.id, |b| &b.name)?;

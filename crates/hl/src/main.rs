@@ -287,6 +287,16 @@ enum BucketAction {
     },
     /// Set the bucket's cash to match a real account.
     Set { bucket: String, amount: String },
+    /// Say which account a bucket's money is kept in, so spending from it
+    /// comes out of that account. With --unlinked, every bucket with none.
+    Link {
+        #[arg(required_unless_present = "unlinked")]
+        bucket: Option<String>,
+        #[arg(long, conflicts_with = "bucket")]
+        unlinked: bool,
+        #[arg(long)]
+        to: String,
+    },
     Move {
         bucket: String,
         amount: String,
@@ -441,6 +451,11 @@ async fn run(cli: Cli) -> Outcome {
             Some(BucketAction::Set { bucket, amount }) => {
                 write::bucket(&s, &bucket, write::BucketAction::Set(&amount), "").await
             }
+            Some(BucketAction::Link {
+                bucket,
+                unlinked: _,
+                to,
+            }) => write::bucket_link(&s, bucket.as_deref(), &to).await,
             Some(BucketAction::Move { bucket, amount, to }) => {
                 write::bucket(
                     &s,

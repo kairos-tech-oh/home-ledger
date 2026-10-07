@@ -90,8 +90,9 @@ apart.
 | Command | Does |
 |---|---|
 | `hl account balance <account> <amount>` | Sets a balance |
-| `hl bucket add\|spend <bucket> <amount> [--note "…"]` | Adds to or spends from a bucket |
-| `hl bucket set <bucket> <amount>` · `hl bucket move <bucket> <amount> --to <bucket>` | Sets a bucket's cash; moves between buckets |
+| `hl bucket add\|spend <bucket> <amount> [--note "…"]` | Adds to a bucket, or spends from it: a spend also leaves the account the bucket is kept in |
+| `hl bucket link <bucket> --to <account>` · `hl bucket link --unlinked --to <account>` | Says which account a bucket's money is kept in; `--unlinked` does it for every bucket with none |
+| `hl bucket set <bucket> <amount>` · `hl bucket move <bucket> <amount> --to <bucket>` | Sets a bucket's cash; moves between buckets, and between their accounts when they differ |
 | `hl payday <earner> [--undo]` | One paycheck's worth into every bucket that earner funds |
 | `hl statement new --card C --balance N --date D [--bucket-source A] [--spend-source A] [--no-account-moves]` | Starts a statement, taking its sources from the card's last one when not given |
 | `hl statement import <statement> <file.csv> [--member All] [--bucket B]` | Adds the purchases from a bank export; payments and charges already there are left out |

@@ -80,6 +80,10 @@ pub struct BucketView {
     pub when_short: String,
     pub cover_bucket_id: String,
     pub cover_bucket_name: String,
+    /// The account the bucket's money is kept in, which a spend comes out
+    /// of. Empty when it has none.
+    pub account_id: String,
+    pub account_name: String,
 }
 
 #[derive(Serialize)]
@@ -513,6 +517,11 @@ fn buckets_of(doc: &Ledger) -> Vec<BucketView> {
                 cover_bucket_name: doc
                     .bucket(&bucket.cover_bucket_id)
                     .map(|b| b.name.clone())
+                    .unwrap_or_default(),
+                account_id: bucket.linked_account_id.clone(),
+                account_name: doc
+                    .account(&bucket.linked_account_id)
+                    .map(|a| a.name.clone())
                     .unwrap_or_default(),
             }
         })

@@ -76,6 +76,14 @@ pub async fn buckets(s: &Session, which: Option<&str>) -> Outcome {
         return show(s.json, b, |b| {
             println!("{}{}", b.name, if b.locked { " (locked)" } else { "" });
             println!("id        {}", b.id);
+            println!(
+                "kept in   {}",
+                if b.account_name.is_empty() {
+                    "no account"
+                } else {
+                    &b.account_name
+                }
+            );
             println!("total     {}", money(&b.total));
             println!("cash      {}", money(&b.cash));
             if b.invested != "0.00" {
@@ -105,11 +113,16 @@ pub async fn buckets(s: &Session, which: Option<&str>) -> Outcome {
         });
     }
     show(s.json, &v.buckets, |buckets| {
-        let mut t =
-            Table::new(&["Bucket", "Total", "Target", "Monthly", "Short"]).figures(&[1, 2, 3, 4]);
+        let mut t = Table::new(&["Bucket", "Kept in", "Total", "Target", "Monthly", "Short"])
+            .figures(&[2, 3, 4, 5]);
         for b in buckets {
             t.row(vec![
                 b.name.clone(),
+                if b.account_name.is_empty() {
+                    "—".into()
+                } else {
+                    b.account_name.clone()
+                },
                 money(&b.total),
                 maybe_money(&b.target),
                 money(&b.funded_monthly),

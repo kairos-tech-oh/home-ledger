@@ -41,6 +41,9 @@ export interface BucketView {
   whenShort: "" | "bucket" | "everyday" | "negative";
   coverBucketId: string;
   coverBucketName: string;
+  /** The account its money is kept in, which a spend comes out of. */
+  accountId: string;
+  accountName: string;
 }
 
 export interface IncomeView {
@@ -573,6 +576,8 @@ export type Op =
   | { op: "set"; kind: RecordKind; id: string; record: Record<string, unknown> }
   | { op: "delete"; kind: RecordKind; id: string }
   | { op: "bucket-adjust"; adjustments: { id: string; delta: string }[]; label: string }
+  | { op: "bucket-spend"; id: string; amount: string; label: string }
+  | { op: "buckets-link"; ids: string[]; accountId: string }
   | { op: "bucket-total"; id: string; amount: string }
   | { op: "bucket-move"; fromId: string; toId: string; amount: string }
   | {

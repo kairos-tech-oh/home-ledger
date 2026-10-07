@@ -1,12 +1,35 @@
 <script lang="ts">
-  import { ledger, money, type BucketView, type PaydayView } from "./ledger";
+  import { ledger, money, type AccountView, type BucketView, type PaydayView } from "./ledger";
   import { largestFirst } from "./order";
 
   let {
     buckets,
+    accounts = [],
     paydays = [],
     onchanged,
-  }: { buckets: BucketView[]; paydays?: PaydayView[]; onchanged: () => void } = $props();
+  }: {
+    buckets: BucketView[];
+    accounts?: AccountView[];
+    paydays?: PaydayView[];
+    onchanged: () => void;
+  } = $props();
+
+  // Where a bucket's money can be kept: anywhere money is held, not a debt
+  // and not a home or car.
+  const homes = $derived(
+    accounts
+      .filter((a) => !a.liability && a.kind !== "property" && a.kind !== "vehicle")
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  );
+  const unlinked = $derived(buckets.filter((b) => !b.accountId));
+  let linkTo = $state("");
+
+  function linkUnlinked() {
+    run(() =>
+      ledger.apply({ op: "buckets-link", ids: unlinked.map((b) => b.id), accountId: linkTo }),
+    );
+  }
 
   // A payday adds one paycheck's worth to every bucket that earner funds, as
   // one edit; its undo takes the same amounts back out.
@@ -38,6 +61,7 @@
   let locked = $state(false);
   let whenShort = $state<BucketView["whenShort"]>("");
   let coverBucketId = $state("");
+  let accountId = $state("");
 
   const open = $derived(adding || editing !== null || moving !== null);
   const ordered = $derived(largestFirst(buckets));
@@ -63,6 +87,7 @@
     locked = bucket?.locked ?? false;
     whenShort = bucket?.whenShort ?? "";
     coverBucketId = bucket?.coverBucketId ?? "";
+    accountId = bucket?.accountId ?? (homes.length === 1 ? homes[0].id : "");
     error = "";
   }
 
@@ -107,6 +132,7 @@
           locked,
           whenShort: whenShort === "bucket" && !coverBucketId ? "" : whenShort,
           coverBucketId: whenShort === "bucket" ? coverBucketId : "",
+          linkedAccountId: accountId,
         },
       }),
     );
@@ -129,9 +155,10 @@
       case "spend":
         return run(() =>
           ledger.apply({
-            op: "bucket-adjust",
-            adjustments: [{ id: bucket.id, delta: `-${value.replace(/^-/, "")}` }],
-            label: label.trim() || "Spent",
+            op: "bucket-spend",
+            id: bucket.id,
+            amount: value.replace(/^-/, ""),
+            label: label.trim(),
           }),
         );
       case "set":
@@ -215,10 +242,36 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 
+{#if unlinked.length > 0 && !open}
+  <div class="warn-box link-all">
+    <p>
+      {unlinked.length === buckets.length ? "No bucket says" : `${unlinked.length} bucket${unlinked.length === 1 ? " doesn't say" : "s don't say"}`}
+      which account its money is in, so spending from {unlinked.length === 1 ? "it" : "them"} changes
+      no account. Choose where they're kept; any one can be changed later with Edit.
+    </p>
+    <div class="actions">
+      <select bind:value={linkTo} aria-label="Account for the buckets">
+        <option value="" disabled>Choose an account</option>
+        {#each homes as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+      </select>
+      <button onclick={linkUnlinked} disabled={busy || !linkTo}>
+        Keep {unlinked.length === 1 ? "it" : `all ${unlinked.length}`} there
+      </button>
+    </div>
+  </div>
+{/if}
+
 {#if adding || editing}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); saveBucket(); }}>
     <h3>{editing ? `Edit ${editing.name}` : "Add a bucket"}</h3>
     <label class="field"><span>Name</span><input bind:value={name} required /></label>
+    <label class="field">
+      <span>Kept in</span>
+      <select bind:value={accountId} required>
+        <option value="" disabled>Choose the account its money is in</option>
+        {#each homes as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+      </select>
+    </label>
     <label class="field">
       <span>Target</span>
       <input bind:value={target} inputmode="decimal" placeholder="optional" />
@@ -282,6 +335,23 @@
         <input bind:value={label} placeholder="optional" />
       </label>
     {/if}
+    {#if moving.mode === "spend"}
+      <p class="note" class:warn-text={!moving.bucket.accountId}>
+        {#if moving.bucket.accountId}
+          It comes out of {moving.bucket.accountName} too.
+        {:else}
+          {moving.bucket.name} doesn't say which account it's kept in, so no account changes. Choose
+          one with Edit.
+        {/if}
+      </p>
+    {:else if moving.mode === "move" && toBucket}
+      {@const into = buckets.find((b) => b.id === toBucket)}
+      {#if into && moving.bucket.accountId && into.accountId && into.accountId !== moving.bucket.accountId}
+        <p class="note">
+          The money moves from {moving.bucket.accountName} to {into.accountName} too.
+        </p>
+      {/if}
+    {/if}
     <div class="actions">
       <button type="submit" disabled={busy}>{busy ? "Working…" : "Confirm"}</button>
       <button type="button" class="bare" onclick={() => (moving = null)}>Cancel</button>
@@ -298,6 +368,9 @@
           {#if bucket.target}<span class="card-where">of {money(bucket.target)}</span>{/if}
         </div>
         <div class="card-name">{bucket.name}</div>
+        <div class="card-note" class:warn-text={!bucket.accountId}>
+          {bucket.accountName || "no account"}
+        </div>
         <div class="card-figure" class:pos={!bucket.total.startsWith("-")} class:neg={bucket.total.startsWith("-")}>{money(bucket.total)}</div>
         {#if bucket.progress !== null && bucket.target}
           <span class="bar" title="{bucket.progress.toFixed(0)}% of {money(bucket.target)}">
@@ -359,6 +432,7 @@
           {/if}
         </div>
         <div class="row-meta">
+          <span class:warn-text={!bucket.accountId}>{bucket.accountName || "no account"}</span> ·
           cash {money(bucket.cash)}
           {#if bucket.invested !== "0.00"} · invested {money(bucket.invested)}{/if}
           {#if bucket.contributions !== "0.00"} · contributions {money(bucket.contributions)}{/if}
@@ -403,6 +477,9 @@
 {/if}
 
 <style>
+  .link-all .actions select {
+    max-width: 16rem;
+  }
   .controls {
     display: flex;
     gap: 0.6rem;

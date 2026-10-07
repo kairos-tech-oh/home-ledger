@@ -122,6 +122,20 @@ pub enum Op {
         #[serde(default)]
         label: String,
     },
+    /// Money spent out of a bucket. It leaves the bucket and the account the
+    /// bucket is kept in together, as it left the real account. A bucket
+    /// with no account changes alone.
+    BucketSpend {
+        id: String,
+        amount: Money,
+        #[serde(default)]
+        label: String,
+    },
+    /// Keep each listed bucket in one account, as one edit.
+    BucketsLink {
+        ids: Vec<String>,
+        account_id: String,
+    },
     /// Set a bucket's balance by hand, to match a real account.
     BucketTotal {
         id: String,
@@ -272,6 +286,8 @@ impl Writer {
             Op::Set { kind, id, record } => self.set(ledger, *kind, id, record)?,
             Op::Delete { kind, id } => self.delete(ledger, *kind, id)?,
             Op::BucketAdjust { adjustments, label } => self.adjust(ledger, adjustments, label)?,
+            Op::BucketSpend { id, amount, label } => self.spend(ledger, id, *amount, label)?,
+            Op::BucketsLink { ids, account_id } => self.link(ledger, ids, account_id)?,
             Op::BucketTotal { id, amount } => self.bucket_total(ledger, id, *amount)?,
             Op::BucketMove {
                 from_id,
@@ -674,16 +690,44 @@ impl Writer {
             )));
         }
 
+        // Between buckets kept in two different accounts, the money moves
+        // between the accounts as well. Within one account, or where either
+        // bucket has none, the accounts are as they were. Found before
+        // anything moves, so a refusal leaves everything as it was.
+        let from_account = ledger.buckets[source].linked_account_id.clone();
+        let to_account = ledger.buckets[target].linked_account_id.clone();
+        let accounts =
+            if !from_account.is_empty() && !to_account.is_empty() && from_account != to_account {
+                match (
+                    ledger.accounts.iter().position(|a| a.id == from_account),
+                    ledger.accounts.iter().position(|a| a.id == to_account),
+                ) {
+                    (Some(out_of), Some(into)) => Some((out_of, into)),
+                    _ => {
+                        return Err(WriteError::Missing(
+                            "a bucket's account no longer exists".into(),
+                        ));
+                    }
+                }
+            } else {
+                None
+            };
+
         let from_before = ledger.buckets[source].current_total;
         let to_before = ledger.buckets[target].current_total;
         ledger.buckets[source].current_total = from_before - amount;
         ledger.buckets[target].current_total = to_before + amount;
+        let mut account_changes = Vec::new();
+        if let Some((out_of, into)) = accounts {
+            account_changes.push(draw(&mut ledger.accounts[out_of], amount));
+            account_changes.push(draw(&mut ledger.accounts[into], -amount));
+        }
 
         let name = format!(
             "{} → {}",
             ledger.buckets[source].name, ledger.buckets[target].name
         );
-        let changes = vec![
+        let mut changes = vec![
             AuditChange {
                 field: ledger.buckets[source].name.clone(),
                 from: from_before.to_string(),
@@ -695,6 +739,7 @@ impl Writer {
                 to: ledger.buckets[target].current_total.to_string(),
             },
         ];
+        changes.extend(account_changes);
 
         Ok(self.finish(
             AuditEntry {
@@ -707,6 +752,154 @@ impl Writer {
             },
             "bucket-move",
         ))
+    }
+
+    fn spend(
+        &self,
+        ledger: &mut Ledger,
+        id: &str,
+        amount: Money,
+        label: &str,
+    ) -> Result<AuditEntry, WriteError> {
+        let amount = Money::new(amount.inner().abs());
+        if amount.is_zero() {
+            return Err(WriteError::Unchanged("nothing spent".into()));
+        }
+        let wanted = valid_id(id);
+        let Some(index) = ledger.buckets.iter().position(|b| b.id == wanted) else {
+            return Err(WriteError::Missing("no such bucket".into()));
+        };
+        let account = match ledger.buckets[index].linked_account_id.as_str() {
+            "" => None,
+            linked => match ledger.accounts.iter().position(|a| a.id == linked) {
+                Some(i) => Some(i),
+                None => {
+                    return Err(WriteError::Missing(format!(
+                        "{}'s account no longer exists; choose another for it",
+                        ledger.buckets[index].name
+                    )));
+                }
+            },
+        };
+
+        // The bucket never goes below zero, as with any spend, but the
+        // account loses the whole amount: that is what left the real one.
+        let bucket = &mut ledger.buckets[index];
+        let before = bucket.current_total;
+        let floor = if before.is_negative() {
+            before
+        } else {
+            Money::ZERO
+        };
+        bucket.current_total = (before - amount).max(floor);
+        let mut changes = vec![AuditChange {
+            field: bucket.name.clone(),
+            from: before.to_string(),
+            to: bucket.current_total.to_string(),
+        }];
+        let named = plain(label, NAME_MAX);
+        let name = if named.is_empty() {
+            format!("Spent from {}", bucket.name)
+        } else {
+            named
+        };
+        if let Some(i) = account {
+            changes.push(draw(&mut ledger.accounts[i], amount));
+        }
+
+        Ok(self.finish(
+            AuditEntry {
+                action: "Spend".into(),
+                subject: "savings".into(),
+                name,
+                amount: Some(-amount),
+                changes,
+                ..Default::default()
+            },
+            "bucket-spend",
+        ))
+    }
+
+    fn link(
+        &self,
+        ledger: &mut Ledger,
+        ids: &[String],
+        account_id: &str,
+    ) -> Result<AuditEntry, WriteError> {
+        let account = valid_id(account_id);
+        let Some(target) = ledger.accounts.iter().find(|a| a.id == account) else {
+            return Err(WriteError::Missing("no such account".into()));
+        };
+        // A bucket is money put aside, so it lives where money is held: not
+        // on a card or a loan, and not in a home or a car.
+        if !holds_money(target) {
+            return Err(WriteError::Refused(format!(
+                "{} is a {} account, which holds no money to keep a bucket in",
+                target.name, target.kind
+            )));
+        }
+        let name = target.name.clone();
+        let mut changes = Vec::new();
+        let mut linked = 0;
+        for id in ids.iter().take(caps::BUCKETS) {
+            let wanted = valid_id(id);
+            let Some(bucket) = ledger.buckets.iter_mut().find(|b| b.id == wanted) else {
+                return Err(WriteError::Missing("no such bucket".into()));
+            };
+            if bucket.linked_account_id == account {
+                continue;
+            }
+            bucket.linked_account_id = account.clone();
+            linked += 1;
+            if changes.len() < caps::CHANGES {
+                changes.push(AuditChange {
+                    field: bucket.name.clone(),
+                    from: String::new(),
+                    to: name.clone(),
+                });
+            }
+        }
+        if linked == 0 {
+            return Err(WriteError::Unchanged("already kept there".into()));
+        }
+        Ok(self.finish(
+            AuditEntry {
+                action: "Link".into(),
+                subject: "savings".into(),
+                name: format!(
+                    "{linked} bucket{} to {name}",
+                    if linked == 1 { "" } else { "s" }
+                ),
+                changes,
+                ..Default::default()
+            },
+            "buckets-link",
+        ))
+    }
+}
+
+/// Whether a bucket's money can be kept in this account.
+fn holds_money(account: &ledger_domain::records::Account) -> bool {
+    !account.is_liability() && !account.can_secure_a_loan()
+}
+
+/// Money leaving an account, or arriving when negative. On a card or loan
+/// it is owed instead, and a card's credit left goes down with it.
+fn draw(account: &mut ledger_domain::records::Account, out: Money) -> AuditChange {
+    let before = account.total.unwrap_or(Money::ZERO);
+    let after = if account.is_liability() {
+        if let Some(room) = account.available_credit {
+            account.available_credit = Some(room - out);
+        }
+        before + out
+    } else {
+        before - out
+    };
+    account.total = Some(after);
+    AuditChange {
+        field: account.name.clone(),
+        from: before.to_string(),
+        to: after.to_string(),
     }
 }
 
@@ -1409,6 +1602,230 @@ mod tests {
             },
         );
         assert!(matches!(refused, Err(WriteError::Refused(_))));
+    }
+
+    // ----------------------------------------------------- spend and link
+
+    fn account_with(ledger: &mut Ledger, name: &str, kind: &str, total: i64) -> String {
+        make(
+            ledger,
+            Kind::Account,
+            json!({ "name": name, "type": kind, "total": total }),
+        )
+    }
+
+    fn total_of(ledger: &Ledger, id: &str) -> Money {
+        ledger.account(id).unwrap().total.unwrap()
+    }
+
+    fn link(ledger: &mut Ledger, buckets: &[&str], account: &str) -> AuditEntry {
+        writer()
+            .apply(
+                ledger,
+                &Op::BucketsLink {
+                    ids: buckets.iter().map(|b| b.to_string()).collect(),
+                    account_id: account.into(),
+                },
+            )
+            .unwrap()
+    }
+
+    fn spend(ledger: &mut Ledger, bucket: &str, amount: Money) -> Result<AuditEntry, WriteError> {
+        writer().apply(
+            ledger,
+            &Op::BucketSpend {
+                id: bucket.into(),
+                amount,
+                label: "Mortgage Payment".into(),
+            },
+        )
+    }
+
+    #[test]
+    fn a_spend_leaves_the_bucket_and_its_account_together() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 28608);
+        let mortgage = bucket_with(&mut ledger, "Mortgage", 1896);
+        link(&mut ledger, &[&mortgage], &fidelity);
+
+        let paid = Money::new(rust_decimal::Decimal::new(175161, 2));
+        let entry = spend(&mut ledger, &mortgage, paid).unwrap();
+        assert_eq!(entry.action, "Spend");
+        assert_eq!(entry.name, "Mortgage Payment");
+        assert_eq!(entry.amount, Some(-paid));
+        assert_eq!(
+            ledger.bucket(&mortgage).unwrap().current_total.to_string(),
+            "144.39"
+        );
+        assert_eq!(total_of(&ledger, &fidelity).to_string(), "26856.39");
+        assert_eq!(entry.changes.len(), 2, "the bucket and the account");
+        assert_eq!(entry.changes[1].field, "Fidelity Savings");
+    }
+
+    #[test]
+    fn the_account_loses_all_of_a_spend_the_bucket_could_not_cover() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let small = bucket_with(&mut ledger, "Small", 40);
+        link(&mut ledger, &[&small], &fidelity);
+        spend(&mut ledger, &small, Money::from(100)).unwrap();
+        assert_eq!(ledger.bucket(&small).unwrap().current_total, Money::ZERO);
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(900));
+    }
+
+    #[test]
+    fn a_spend_from_a_bucket_with_no_account_changes_only_the_bucket() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let loose = bucket_with(&mut ledger, "Loose", 100);
+        let entry = spend(&mut ledger, &loose, Money::from(30)).unwrap();
+        assert_eq!(entry.changes.len(), 1);
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(1000));
+        assert!(matches!(
+            spend(&mut ledger, &loose, Money::ZERO),
+            Err(WriteError::Unchanged(_))
+        ));
+    }
+
+    #[test]
+    fn a_spend_from_a_bucket_kept_on_a_card_is_owed() {
+        let mut ledger = Ledger::default();
+        let card = make(
+            &mut ledger,
+            Kind::Account,
+            json!({ "name": "Card", "type": "credit", "total": 200, "availableCredit": 800 }),
+        );
+        let bucket = bucket_with(&mut ledger, "On card", 50);
+        // Not linkable now, but an older client could have linked it.
+        let refused = writer().apply(
+            &mut ledger,
+            &Op::BucketsLink {
+                ids: vec![bucket.clone()],
+                account_id: card.clone(),
+            },
+        );
+        assert!(matches!(refused, Err(WriteError::Refused(_))));
+        ledger
+            .buckets
+            .iter_mut()
+            .find(|x| x.id == bucket)
+            .unwrap()
+            .linked_account_id = card.clone();
+        spend(&mut ledger, &bucket, Money::from(50)).unwrap();
+        let account = ledger.account(&card).unwrap();
+        assert_eq!(account.total, Some(Money::from(250)));
+        assert_eq!(account.available_credit, Some(Money::from(750)));
+    }
+
+    #[test]
+    fn a_payday_and_its_undo_leave_accounts_alone() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let bucket = bucket_with(&mut ledger, "Mortgage", 0);
+        link(&mut ledger, &[&bucket], &fidelity);
+        for delta in [875, -875] {
+            writer()
+                .apply(
+                    &mut ledger,
+                    &Op::BucketAdjust {
+                        adjustments: vec![Adjustment {
+                            id: bucket.clone(),
+                            delta: Money::from(delta),
+                        }],
+                        label: "payday".into(),
+                    },
+                )
+                .unwrap();
+        }
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(1000));
+    }
+
+    #[test]
+    fn a_move_between_accounts_moves_the_money_between_them() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let chase = account_with(&mut ledger, "Chase Joint", "checking", 100);
+        let a = bucket_with(&mut ledger, "A", 300);
+        let b = bucket_with(&mut ledger, "B", 0);
+        let c = bucket_with(&mut ledger, "C", 0);
+        link(&mut ledger, &[&a, &b], &fidelity);
+        link(&mut ledger, &[&c], &chase);
+        let mv = |ledger: &mut Ledger, from: &str, to: &str| {
+            writer().apply(
+                ledger,
+                &Op::BucketMove {
+                    from_id: from.into(),
+                    to_id: to.into(),
+                    amount: Money::from(50),
+                },
+            )
+        };
+
+        mv(&mut ledger, &a, &b).unwrap();
+        assert_eq!(
+            total_of(&ledger, &fidelity),
+            Money::from(1000),
+            "one account"
+        );
+        let entry = mv(&mut ledger, &a, &c).unwrap();
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(950));
+        assert_eq!(total_of(&ledger, &chase), Money::from(150));
+        assert_eq!(entry.changes.len(), 4);
+
+        // A bucket whose account has gone refuses, and nothing moves.
+        ledger
+            .buckets
+            .iter_mut()
+            .find(|x| x.id == c)
+            .unwrap()
+            .linked_account_id = "f".repeat(32);
+        assert!(mv(&mut ledger, &a, &c).is_err());
+        assert_eq!(ledger.bucket(&a).unwrap().current_total, Money::from(200));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(950));
+    }
+
+    #[test]
+    fn linking_buckets_is_one_edit_naming_each() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let a = bucket_with(&mut ledger, "A", 1);
+        let b = bucket_with(&mut ledger, "B", 1);
+        let entry = link(&mut ledger, &[&a, &b], &fidelity);
+        assert_eq!(entry.name, "2 buckets to Fidelity Savings");
+        assert!(
+            ledger
+                .buckets
+                .iter()
+                .all(|x| x.linked_account_id == fidelity)
+        );
+        let again = writer().apply(
+            &mut ledger,
+            &Op::BucketsLink {
+                ids: vec![a.clone()],
+                account_id: fidelity.clone(),
+            },
+        );
+        assert!(matches!(again, Err(WriteError::Unchanged(_))));
+        let nowhere = writer().apply(
+            &mut ledger,
+            &Op::BucketsLink {
+                ids: vec![a],
+                account_id: "e".repeat(32),
+            },
+        );
+        assert!(matches!(nowhere, Err(WriteError::Missing(_))));
+    }
+
+    #[test]
+    fn a_spend_reads_from_the_json_the_screens_send() {
+        let op: Op = serde_json::from_value(json!({
+            "op": "bucket-spend", "id": "a", "amount": "12.50", "label": "x" }))
+        .unwrap();
+        assert!(matches!(op, Op::BucketSpend { .. }));
+        let op: Op = serde_json::from_value(json!({
+            "op": "buckets-link", "ids": ["a"], "accountId": "b" }))
+        .unwrap();
+        assert!(matches!(op, Op::BucketsLink { .. }));
     }
 
     #[test]
