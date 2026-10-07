@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-10-07
+
 ### Changed
 - Every bucket says which account its money is kept in, and spending from a
   bucket now takes the money out of that account too. A mortgage payment from

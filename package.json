@@ -2,7 +2,7 @@
   "name": "home-ledger",
   "private": true,
   "license": "Apache-2.0",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
