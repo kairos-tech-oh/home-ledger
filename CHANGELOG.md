@@ -16,8 +16,9 @@ described here but have no tags of their own.
   with the Home Ledger folder. The installer no longer touches PATH as text.
   `hl` adds or removes its one entry through the registry API, keeps every
   other entry and the value's type, refuses any other change, and saves the
-  old value to `HKCUSoftwarehome-ledgerpath-backup` first. If 0.2.7 erased
-  your PATH, Windows keeps no copy, so it has to be rebuilt by hand.
+  old value to `HKCU\Software\home-ledger\path-backup` first. If 0.2.7 erased
+  your PATH, this does not bring it back: restore it from a backup, or rebuild
+  it by hand.
 
 ### Added
 - Bank connections through Plaid, with your own Plaid keys. A statement's

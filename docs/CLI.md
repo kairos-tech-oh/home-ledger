@@ -18,7 +18,7 @@ for `hl`.
   to your PATH; a new terminal finds it. A checkbox on the installer's first
   page also makes `ledger` a second name for it. Only that one entry is
   ever added or removed, and the PATH it found is copied to
-  `HKCUSoftwarehome-ledgerpath-backup` first.
+  `HKCU\Software\home-ledger\path-backup` first.
 - **Linux:** the .deb and .rpm install it as `/usr/bin/hl`.
 - **The `ledger` name, any time:** `hl alias on` (or `off`, or `status`). On
   Windows this is `ledger.cmd` beside `hl.exe`, and the installer keeps your
