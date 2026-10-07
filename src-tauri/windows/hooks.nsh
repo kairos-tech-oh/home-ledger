@@ -1,7 +1,7 @@
 ; Home Ledger's additions to Tauri's NSIS installer:
 ;
 ;  - the app's folder, where hl.exe is installed beside it, goes on the
-;    user's PATH, and comes off it again on uninstall;
+;    user's PATH, and comes off it again on uninstall, both done by hl itself;
 ;  - a checkbox on the Welcome page offers `ledger` as a second name for hl,
 ;    remembered so an in-app update (which shows no pages) keeps the choice.
 ;
@@ -43,86 +43,22 @@ FunctionEnd
 
 ; ------------------------------------------------------------------- PATH
 ;
-; NSIS strings stop at NSIS_MAX_STRLEN characters. A PATH that long may have
-; been cut short when read, and writing it back would lose the rest of it, so
-; a PATH at the limit is left alone and the installer says so instead.
+; Never read or written here. NSIS strings stop at NSIS_MAX_STRLEN, and past
+; it ReadRegStr gives back an empty string rather than a cut-short one; an
+; earlier version of this script took that for an empty PATH and wrote the
+; app's folder over everything on it. hl reads and writes the value whole
+; through the registry API, keeps its type, refuses any change that is not
+; exactly one entry added or removed, and copies the old value to
+; HKCU\Software\home-ledger\path-backup first, which an uninstall leaves in
+; place. Its output goes to the log, so nothing flashes on screen.
 
-; In: $R0 the PATH. Out: $R9 = 1 when $INSTDIR is one of its entries.
-!macro HlPathHas
-  StrCpy $R1 ";$R0;"
-  StrCpy $R2 ";$INSTDIR;"
-  StrLen $R3 $R2
-  StrLen $R4 $R1
-  StrCpy $R9 0
-  StrCpy $R5 0
-  ${DoWhile} $R5 <= $R4
-    StrCpy $R6 $R1 $R3 $R5
-    ${If} $R6 == $R2
-      StrCpy $R9 1
-      ${Break}
-    ${EndIf}
-    IntOp $R5 $R5 + 1
-  ${Loop}
-!macroend
-
-; In: $R0 the PATH. Out: $R0 without $INSTDIR, other entries in order.
-!macro HlPathWithout
-  StrCpy $R1 "$R0;"
-  StrCpy $R7 ""
-  StrCpy $R8 ""
-  StrLen $R4 $R1
-  StrCpy $R5 0
-  ${DoWhile} $R5 < $R4
-    StrCpy $R6 $R1 1 $R5
-    ${If} $R6 == ";"
-      ${If} $R8 != ""
-      ${AndIf} $R8 != $INSTDIR
-        ${If} $R7 == ""
-          StrCpy $R7 $R8
-        ${Else}
-          StrCpy $R7 "$R7;$R8"
-        ${EndIf}
-      ${EndIf}
-      StrCpy $R8 ""
-    ${Else}
-      StrCpy $R8 "$R8$R6"
-    ${EndIf}
-    IntOp $R5 $R5 + 1
-  ${Loop}
-  StrCpy $R0 $R7
-!macroend
-
-!macro HlAddToPath
-  ReadRegStr $R0 HKCU "Environment" "Path"
-  StrLen $R4 $R0
-  IntOp $R3 ${NSIS_MAX_STRLEN} - 2
-  ${If} $R4 >= $R3
-    DetailPrint "Your PATH is too long to change safely; add $INSTDIR to it yourself to use hl."
+!macro HlPath ACTION
+  nsExec::ExecToLog '"$INSTDIR\hl.exe" install-path ${ACTION} "$INSTDIR"'
+  Pop $R0
+  ${If} $R0 == 0
+    SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
   ${Else}
-    !insertmacro HlPathHas
-    ${If} $R9 == 0
-      ${If} $R0 == ""
-        StrCpy $R0 "$INSTDIR"
-      ${Else}
-        StrCpy $R0 "$R0;$INSTDIR"
-      ${EndIf}
-      WriteRegExpandStr HKCU "Environment" "Path" $R0
-      SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
-    ${EndIf}
-  ${EndIf}
-!macroend
-
-!macro HlRemoveFromPath
-  ReadRegStr $R0 HKCU "Environment" "Path"
-  StrLen $R4 $R0
-  IntOp $R3 ${NSIS_MAX_STRLEN} - 2
-  ${If} $R4 < $R3
-    !insertmacro HlPathHas
-    ${If} $R9 == 1
-      !insertmacro HlPathWithout
-      WriteRegExpandStr HKCU "Environment" "Path" $R0
-      SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
-    ${EndIf}
+    DetailPrint "PATH was left as it was; add or remove $INSTDIR yourself to change where hl is found."
   ${EndIf}
 !macroend
 
@@ -145,14 +81,14 @@ FunctionEnd
       WriteRegStr HKCU "${HL_KEY}" "ledgerAlias" "0"
     ${EndIf}
   ${EndIf}
-  !insertmacro HlAddToPath
+  !insertmacro HlPath add
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
   ; An update runs the old uninstaller first; only a real uninstall cleans up.
   ${If} $UpdateMode <> 1
     Delete "$INSTDIR\ledger.cmd"
-    !insertmacro HlRemoveFromPath
+    !insertmacro HlPath remove
     DeleteRegKey HKCU "${HL_KEY}"
     DeleteRegKey /ifempty HKCU "Software\home-ledger"
   ${EndIf}

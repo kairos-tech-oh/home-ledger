@@ -28,6 +28,7 @@ macro_rules! print {
 
 mod alias;
 mod bank;
+mod install_path;
 mod out;
 mod read;
 mod session;
@@ -208,6 +209,14 @@ enum Command {
         #[command(subcommand)]
         action: Option<BankAction>,
     },
+    /// For the Windows installer: put a folder on the user's PATH, or take it
+    /// off, keeping every other entry exactly as it was.
+    #[command(hide = true)]
+    InstallPath {
+        #[arg(value_parser = ["add", "remove"])]
+        action: String,
+        dir: String,
+    },
     /// Bring in the Omarchy plugin's change history.
     ImportHistory {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -348,6 +357,11 @@ enum PriceAction {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+
+    // The installer's PATH change needs no ledger, and must not open one.
+    if let Command::InstallPath { action, dir } = &cli.command {
+        return install_path::run(action, dir);
+    }
 
     // The plugin-history import runs its own runtime, so it starts before ours.
     if let Command::ImportHistory { args } = &cli.command {
@@ -539,6 +553,7 @@ async fn run(cli: Cli) -> Outcome {
         | Command::Unlock
         | Command::Lock
         | Command::Alias { .. }
+        | Command::InstallPath { .. }
         | Command::ImportHistory { .. } => unreachable!(),
     }
 }

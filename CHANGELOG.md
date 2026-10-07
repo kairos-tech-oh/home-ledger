@@ -10,6 +10,15 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Fixed
+- **The Windows installer could erase your PATH.** On a PATH longer than 1024
+  characters, installing or updating to 0.2.7 replaced the whole user PATH
+  with the Home Ledger folder. The installer no longer touches PATH as text.
+  `hl` adds or removes its one entry through the registry API, keeps every
+  other entry and the value's type, refuses any other change, and saves the
+  old value to `HKCUSoftwarehome-ledgerpath-backup` first. If 0.2.7 erased
+  your PATH, Windows keeps no copy, so it has to be rebuilt by hand.
+
 ### Added
 - Bank connections through Plaid, with your own Plaid keys. A statement's
   import can fetch the card's charges from the bank, with clean merchant names
