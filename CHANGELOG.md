@@ -24,6 +24,10 @@ described here but have no tags of their own.
 - In Import charges, the dropdowns no longer spill over the labels and the
   "keep the bank's category" checkbox beside them; each setting's label now
   sits above it.
+- Updating a .deb or .rpm install failed with "invalid updater binary format":
+  the updater was handed the AppImage. Releases now publish signed .deb and
+  .rpm updates, and a copy whose package tool is missing (a .deb's binary on
+  Arch, say) says to update by hand instead.
 
 ## [0.4.1] - 2026-11-21
 

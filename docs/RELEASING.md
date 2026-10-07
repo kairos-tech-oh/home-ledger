@@ -34,6 +34,11 @@ Actions made — not a new release made by hand from the tag — is what ships i
 
 Each copy checks on launch and offers the update; Settings → About checks on
 demand. On Windows the installer runs passively and the app restarts itself.
+On Linux each copy updates from its own package type: an AppImage replaces
+itself, while a .deb or .rpm install runs `dpkg -i` or `rpm -U` through
+`pkexec`. A deb or rpm build on a system without that tool (the .deb's binary
+copied onto Arch, for instance) cannot update itself and says so; those
+machines update by hand from the release page.
 
 ## The update key
 

@@ -30,10 +30,12 @@ const assetUrl = (file) =>
   `https://github.com/${repo}/releases/download/${tag}/${basename(file).replaceAll(" ", ".")}`;
 
 // Which installer serves which platform. NSIS is what Home Ledger installs
-// with on Windows, so it is the one an installed copy updates from.
+// with on Windows; a Linux copy asks for its own package type first.
 const wanted = {
   "windows-x86_64": (f) => f.endsWith("-setup.exe"),
   "linux-x86_64": (f) => f.endsWith(".AppImage"),
+  "linux-x86_64-deb": (f) => f.endsWith(".deb"),
+  "linux-x86_64-rpm": (f) => f.endsWith(".rpm"),
 };
 
 const all = files(dir);
