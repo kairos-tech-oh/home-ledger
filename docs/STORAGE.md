@@ -338,12 +338,14 @@ with every other credential.
 
 ## Decided
 
-**No client-side encryption.** The store holds the document as written. S3,
-GCS and Azure encrypt at rest by default, the transport is TLS, and your
-account is already the security boundary. The alternative costs a passphrase
-that cannot be lost without losing the data, and takes away the ability to read
-or repair your own ledger by hand — which for a file you own outright is a real
-loss, not a theoretical one.
+**Encryption is a choice, off by default.** This was first decided the other
+way: no client-side encryption, because S3, GCS and Azure already encrypt at
+rest, the transport is TLS, and the account is the security boundary. A
+passphrase that cannot be lost without losing the data, and a file that cannot
+be read or repaired by hand, were the costs that decided it. Since 0.2.7 it is
+offered under Settings, as described in [Encryption](#encryption) above. A
+recovery code softens the first cost. The second is real, and is why it stays
+off until turned on.
 
 **History is the provider's versioning.** Setup offers to turn on object
 versioning where the provider has it, and that is the backup: every write keeps
