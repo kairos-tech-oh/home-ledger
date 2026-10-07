@@ -10,6 +10,10 @@
 //! else is refused before it is written, and the old value is copied aside
 //! first, so it can always be put back.
 
+// Only the Windows installer calls this; elsewhere the helpers are kept, and
+// tested, but nothing uses them.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 #[cfg(windows)]
 use winreg::{RegKey, RegValue, enums::*};
 
