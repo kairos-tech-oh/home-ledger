@@ -106,7 +106,7 @@ pub async fn payday(s: &Session, earner: &str, undo: bool) -> Outcome {
         .iter()
         .map(|a| json!({ "id": a.id, "delta": if undo { format!("-{}", a.delta) } else { a.delta.clone() } }))
         .collect();
-    s.edit(json!({ "op": "bucket-adjust", "adjustments": adjustments,
+    s.edit(json!({ "op": "bucket-deposit", "adjustments": adjustments,
         "label": format!("{}{}'s payday", if undo { "Undo " } else { "" }, day.owner) }))
         .await
 }

@@ -310,7 +310,7 @@ pub struct PaydayView {
     pub owner: String,
     /// One paycheck's worth across every bucket this earner funds.
     pub total: String,
-    /// What to add to each bucket, ready to send as a bucket-adjust.
+    /// What to add to each bucket, ready to send as a bucket-deposit.
     pub adjustments: Vec<AdjustmentView>,
 }
 

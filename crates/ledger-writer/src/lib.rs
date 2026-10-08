@@ -122,6 +122,14 @@ pub enum Op {
         #[serde(default)]
         label: String,
     },
+    /// Money put into buckets that also arrived in their accounts, as a
+    /// payday's transfer into savings does; negative amounts take it back
+    /// out of both, as its undo does. A bucket with no account changes alone.
+    BucketDeposit {
+        adjustments: Vec<Adjustment>,
+        #[serde(default)]
+        label: String,
+    },
     /// Money spent out of a bucket. It leaves the bucket and the account the
     /// bucket is kept in together, as it left the real account. A bucket
     /// with no account changes alone.
@@ -286,6 +294,7 @@ impl Writer {
             Op::Set { kind, id, record } => self.set(ledger, *kind, id, record)?,
             Op::Delete { kind, id } => self.delete(ledger, *kind, id)?,
             Op::BucketAdjust { adjustments, label } => self.adjust(ledger, adjustments, label)?,
+            Op::BucketDeposit { adjustments, label } => self.deposit(ledger, adjustments, label)?,
             Op::BucketSpend { id, amount, label } => self.spend(ledger, id, *amount, label)?,
             Op::BucketsLink { ids, account_id } => self.link(ledger, ids, account_id)?,
             Op::BucketTotal { id, amount } => self.bucket_total(ledger, id, *amount)?,
@@ -553,6 +562,53 @@ impl Writer {
             },
             "bucket-adjust",
         ))
+    }
+
+    /// The adjustment, plus the same money into (or back out of) each
+    /// bucket's account: one change per account, however many of its buckets
+    /// moved. Each account moves by the whole amount asked, as the real
+    /// transfer did, even where a bucket's floor kept it from going lower.
+    fn deposit(
+        &self,
+        ledger: &mut Ledger,
+        adjustments: &[Adjustment],
+        label: &str,
+    ) -> Result<AuditEntry, WriteError> {
+        // Every account found before anything moves, so a missing one
+        // refuses the whole edit.
+        let mut per_account: Vec<(usize, Money)> = Vec::new();
+        for row in adjustments {
+            let id = valid_id(&row.id);
+            let Some(bucket) = ledger.buckets.iter().find(|b| b.id == id) else {
+                continue; // adjust refuses it below, before anything moves
+            };
+            if bucket.linked_account_id.is_empty() {
+                continue;
+            }
+            let Some(at) = ledger
+                .accounts
+                .iter()
+                .position(|a| a.id == bucket.linked_account_id)
+            else {
+                return Err(WriteError::Missing(format!(
+                    "{}'s account no longer exists; choose another for it",
+                    bucket.name
+                )));
+            };
+            match per_account.iter_mut().find(|(i, _)| *i == at) {
+                Some((_, sum)) => *sum += row.delta,
+                None => per_account.push((at, row.delta)),
+            }
+        }
+
+        let mut entry = self.adjust(ledger, adjustments, label)?;
+        for (at, arrived) in per_account {
+            if !arrived.is_zero() {
+                entry.changes.push(draw(&mut ledger.accounts[at], -arrived));
+            }
+        }
+        entry.op = "bucket-deposit".into();
+        Ok(entry)
     }
 
     /// Prices are written where they are found and flagged where they are not.
@@ -1718,7 +1774,7 @@ mod tests {
     }
 
     #[test]
-    fn a_payday_and_its_undo_leave_accounts_alone() {
+    fn an_adjustment_and_its_reverse_leave_accounts_alone() {
         let mut ledger = Ledger::default();
         let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
         let bucket = bucket_with(&mut ledger, "Mortgage", 0);
@@ -1826,6 +1882,89 @@ mod tests {
             "op": "buckets-link", "ids": ["a"], "accountId": "b" }))
         .unwrap();
         assert!(matches!(op, Op::BucketsLink { .. }));
+    }
+
+    fn deposit(ledger: &mut Ledger, rows: &[(&str, i64)]) -> Result<AuditEntry, WriteError> {
+        writer().apply(
+            ledger,
+            &Op::BucketDeposit {
+                adjustments: rows
+                    .iter()
+                    .map(|(id, delta)| Adjustment {
+                        id: id.to_string(),
+                        delta: Money::from(*delta),
+                    })
+                    .collect(),
+                label: "Chris's payday".into(),
+            },
+        )
+    }
+
+    #[test]
+    fn a_payday_puts_the_money_in_the_buckets_and_their_account() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 30000);
+        let chase = account_with(&mut ledger, "Chase Joint", "checking", 900);
+        let mortgage = bucket_with(&mut ledger, "Mortgage", 100);
+        let groceries = bucket_with(&mut ledger, "Groceries", 50);
+        let loose = bucket_with(&mut ledger, "Loose", 0);
+        link(&mut ledger, &[&mortgage, &groceries], &fidelity);
+
+        let entry = deposit(
+            &mut ledger,
+            &[(&mortgage, 875), (&groceries, 300), (&loose, 25)],
+        )
+        .unwrap();
+        assert_eq!(entry.op, "bucket-deposit");
+        assert_eq!(entry.action, "Add");
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(31175));
+        assert_eq!(
+            total_of(&ledger, &chase),
+            Money::from(900),
+            "the source is not guessed at"
+        );
+        assert_eq!(
+            ledger.bucket(&loose).unwrap().current_total,
+            Money::from(25)
+        );
+        let fidelity_lines = entry
+            .changes
+            .iter()
+            .filter(|c| c.field == "Fidelity Savings")
+            .count();
+        assert_eq!(fidelity_lines, 1, "one line per account, not per bucket");
+
+        // The undo takes the whole transfer back out of both, even though a
+        // bucket has since been spent below what the payday put in.
+        spend(&mut ledger, &groceries, Money::from(340)).unwrap();
+        deposit(
+            &mut ledger,
+            &[(&mortgage, -875), (&groceries, -300), (&loose, -25)],
+        )
+        .unwrap();
+        assert_eq!(
+            ledger.bucket(&groceries).unwrap().current_total,
+            Money::ZERO
+        );
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(29660));
+    }
+
+    #[test]
+    fn a_deposit_to_a_bucket_whose_account_has_gone_moves_nothing() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let a = bucket_with(&mut ledger, "A", 10);
+        let b = bucket_with(&mut ledger, "B", 10);
+        link(&mut ledger, &[&a], &fidelity);
+        ledger
+            .buckets
+            .iter_mut()
+            .find(|x| x.id == b)
+            .unwrap()
+            .linked_account_id = "d".repeat(32);
+        assert!(deposit(&mut ledger, &[(&a, 5), (&b, 5)]).is_err());
+        assert_eq!(ledger.bucket(&a).unwrap().current_total, Money::from(10));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(1000));
     }
 
     #[test]

@@ -576,6 +576,7 @@ export type Op =
   | { op: "set"; kind: RecordKind; id: string; record: Record<string, unknown> }
   | { op: "delete"; kind: RecordKind; id: string }
   | { op: "bucket-adjust"; adjustments: { id: string; delta: string }[]; label: string }
+  | { op: "bucket-deposit"; adjustments: { id: string; delta: string }[]; label: string }
   | { op: "bucket-spend"; id: string; amount: string; label: string }
   | { op: "buckets-link"; ids: string[]; accountId: string }
   | { op: "bucket-total"; id: string; amount: string }

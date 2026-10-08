@@ -93,7 +93,7 @@ apart.
 | `hl bucket add\|spend <bucket> <amount> [--note "…"]` | Adds to a bucket, or spends from it: a spend also leaves the account the bucket is kept in |
 | `hl bucket link <bucket> --to <account>` · `hl bucket link --unlinked --to <account>` | Says which account a bucket's money is kept in; `--unlinked` does it for every bucket with none |
 | `hl bucket set <bucket> <amount>` · `hl bucket move <bucket> <amount> --to <bucket>` | Sets a bucket's cash; moves between buckets, and between their accounts when they differ |
-| `hl payday <earner> [--undo]` | One paycheck's worth into every bucket that earner funds |
+| `hl payday <earner> [--undo]` | One paycheck's worth into every bucket that earner funds, and into each bucket's account, as the transfer into savings |
 | `hl statement new --card C --balance N --date D [--bucket-source A] [--spend-source A] [--no-account-moves]` | Starts a statement, taking its sources from the card's last one when not given |
 | `hl statement import <statement> <file.csv> [--member All] [--bucket B]` | Adds the purchases from a bank export; payments and charges already there are left out |
 | `hl statement import <statement> --from-bank [--member All] [--bucket B]` | Fetches the card's charges from its bank and adds the ones in the statement's dates, each to the bucket its merchant went to last |

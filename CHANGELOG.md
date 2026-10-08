@@ -10,6 +10,13 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Changed
+- A payday puts its money into each bucket's account as well as the bucket:
+  "Add all" stands for the transfer of that paycheck's savings into, say,
+  Fidelity Savings, and its undo takes it back out of both. Before this the
+  account only ever went down, so it drifted below the bank's figure. The
+  account the paycheck lands in is left as it is.
+
 ## [0.2.9] - 2026-10-07
 
 ### Changed

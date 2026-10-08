@@ -32,11 +32,12 @@
   }
 
   // A payday adds one paycheck's worth to every bucket that earner funds, as
-  // one edit; its undo takes the same amounts back out.
+  // one edit, and the same into each bucket's account: it stands for the
+  // transfer into savings. Its undo takes the same amounts back out of both.
   function payday(day: PaydayView, undo: boolean) {
     run(() =>
       ledger.apply({
-        op: "bucket-adjust",
+        op: "bucket-deposit",
         adjustments: day.adjustments.map((a) => ({ id: a.id, delta: undo ? `-${a.delta}` : a.delta })),
         label: `${undo ? "Undo " : ""}${day.owner}'s payday`,
       }),
@@ -212,7 +213,7 @@
         <button
           onclick={() => payday(day, false)}
           disabled={busy}
-          title="Add {money(day.total)} across the {day.adjustments.length} buckets {day.owner} funds"
+          title="Add {money(day.total)} across the {day.adjustments.length} buckets {day.owner} funds, and into the accounts they're kept in"
         >
           Add all · {day.owner} {money(day.total)}
         </button>
