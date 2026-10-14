@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-10-14
+
 ### Added
 - Demo mode, in Settings → Privacy: every figure on every screen is made up
   from your ledger, record by record, so the screens look real and add up
