@@ -117,11 +117,8 @@ pub async fn refresh_prices(state: &AppState) -> Answer<Refreshed> {
         ));
     };
 
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_domain::Ledger::from_bytes(&s.body)?,
-        None => ledger_domain::Ledger::default(),
-    };
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
 
     let targets: Vec<(String, String)> = doc
         .investments

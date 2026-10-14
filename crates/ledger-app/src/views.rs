@@ -366,11 +366,8 @@ pub struct LedgerView {
 
 /// Everything the account and savings screens need, in one read.
 pub async fn ledger(state: &AppState) -> Answer<LedgerView> {
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
 
     Ok(LedgerView {
         accounts: accounts_of(&doc),
@@ -407,8 +404,8 @@ pub async fn ledger(state: &AppState) -> Answer<LedgerView> {
             budget: ledger_domain::records::DEFAULT_BUDGET_TYPES,
             investment: ledger_domain::records::DEFAULT_INVESTMENT_TYPES,
         },
-        stale: loaded.stale,
-        loaded_from: loaded.from.to_string(),
+        stale: shown.stale,
+        loaded_from: shown.from,
     })
 }
 
@@ -844,7 +841,14 @@ pub async fn history_of(state: &AppState) -> HistoryView {
         let live = state.live().await;
         (live.engine.primary().clone(), live.config.install.clone())
     };
-    let gathered = crate::audit::gather(primary.as_ref(), &install, &local).await;
+    let mut gathered = crate::audit::gather(primary.as_ref(), &install, &local).await;
+    if let Some(demo) = state.demo.lock().unwrap().as_ref() {
+        gathered.entries = std::mem::take(&mut gathered.entries)
+            .into_iter()
+            .map(|e| demo.entry(e))
+            .chain(demo.edits.iter().cloned())
+            .collect();
+    }
 
     HistoryView {
         problems: gathered.problems,
@@ -923,11 +927,8 @@ pub struct ProjectionView {
 }
 
 pub async fn projection(state: &AppState) -> Answer<ProjectionView> {
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
     let target_year = state.retirement_target_year().await;
     let (this_year, months_elapsed) = crate::clock::year_and_month();
     Ok(projection_view(

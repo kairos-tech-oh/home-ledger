@@ -213,12 +213,12 @@ pub async fn dashboard(
     let Some(today) = Day::parse(&today) else {
         return Err(CommandError::Message("today must be yyyy-mm-dd".into()));
     };
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
-    let points = state.points().read().await;
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
+    let mut points = state.points().read().await;
+    if let Some(demo) = state.demo.lock().unwrap().as_ref() {
+        points = demo.points(&points);
+    }
     Ok(dashboard_view(&doc, &points, today, offset_minutes))
 }
 

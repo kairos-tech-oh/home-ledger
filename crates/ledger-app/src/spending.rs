@@ -83,11 +83,8 @@ pub async fn spending(
     let Some(today) = Day::parse(&today) else {
         return Err(CommandError::Message("today must be yyyy-mm-dd".into()));
     };
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
     let family = state.family_members().await;
     let window = spending::range(&period, &from, &to, today);
     let report = spending::analyse(&doc, window, Status::parse(&status), offset_minutes);

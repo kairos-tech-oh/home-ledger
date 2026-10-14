@@ -37,6 +37,7 @@ pub fn run() {
             bridge::sync_state,
             bridge::flush,
             bridge::apply,
+            bridge::demo_set,
             bridge::import_preview,
             bridge::import_apply,
             bridge::setup,

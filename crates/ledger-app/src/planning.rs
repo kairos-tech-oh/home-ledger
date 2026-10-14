@@ -62,11 +62,8 @@ pub async fn planning(state: &AppState, from: String, to: String) -> Answer<Plan
     if to <= from {
         return Err(CommandError::Message("choose a date in the future".into()));
     }
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
     Ok(planning_view(&doc, from, to))
 }
 

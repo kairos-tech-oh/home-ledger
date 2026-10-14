@@ -11,6 +11,7 @@ pub mod bank;
 pub mod clock;
 pub mod commands;
 pub mod dashboard;
+pub mod demo;
 pub mod encryption;
 #[cfg(test)]
 mod encryption_tests;

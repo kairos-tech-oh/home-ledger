@@ -516,3 +516,17 @@ input::placeholder {
   font-size: 0.8rem;
   padding: 0.6rem;
 }
+
+/* Blur: the real figures, hidden until the pointer is over them. The marks
+   are set by privacy.svelte.ts on whatever holds a dollar amount. */
+:root[data-blur] [data-amount],
+:root[data-blur] input[inputmode="decimal"] {
+  filter: blur(6px);
+  transition: filter 0.12s ease;
+}
+:root[data-blur] [data-amount]:hover,
+:root[data-blur] [data-amount]:focus,
+:root[data-blur] input[inputmode="decimal"]:hover,
+:root[data-blur] input[inputmode="decimal"]:focus {
+  filter: none;
+}

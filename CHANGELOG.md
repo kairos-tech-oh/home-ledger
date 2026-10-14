@@ -10,6 +10,15 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Demo mode, in Settings → Privacy: every figure on every screen is made up
+  from your ledger, record by record, so the screens look real and add up
+  but no amount is yours. Edits change only the made-up copy and are thrown
+  away; bank connections and imports wait until it is off. "New figures"
+  makes up another set.
+- Blur amounts, in Settings → Privacy: the real figures, blurred until the
+  pointer is over them.
+
 ### Changed
 - An account that keeps buckets now holds exactly the cash in them, worked
   out every time, so Fidelity Savings can no longer drift from its buckets.

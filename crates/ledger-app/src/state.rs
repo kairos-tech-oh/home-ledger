@@ -31,6 +31,9 @@ pub struct AppState {
     /// Which program this is, stamped on every change it makes.
     pub client: Client,
     background: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>,
+    /// While set, the screens show a made-up copy of the ledger and edits
+    /// change only that copy. See [`crate::demo`].
+    pub demo: std::sync::Mutex<Option<crate::demo::Demo>>,
 }
 
 /// Which program is making changes, for the change history.
@@ -191,7 +194,23 @@ impl AppState {
             vault,
             client,
             background: std::sync::Mutex::new(Vec::new()),
+            demo: std::sync::Mutex::new(None),
         })
+    }
+
+    pub fn in_demo(&self) -> bool {
+        self.demo.lock().unwrap().is_some()
+    }
+
+    /// Refuses something that would touch real data or show real figures
+    /// while demo mode is on.
+    pub fn not_in_demo(&self, what: &str) -> Result<(), crate::CommandError> {
+        if self.in_demo() {
+            return Err(crate::CommandError::Message(format!(
+                "turn demo mode off in Settings to {what}"
+            )));
+        }
+        Ok(())
     }
 
     pub fn audit(&self) -> crate::audit::Audit {

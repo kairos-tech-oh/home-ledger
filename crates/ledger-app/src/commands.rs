@@ -46,6 +46,60 @@ from_error!(
 
 pub type Answer<T> = Result<T, CommandError>;
 
+/// The ledger as the screens show it: the made-up copy while demo mode is
+/// on, otherwise the real one with where it came from.
+pub struct Shown {
+    pub ledger: Ledger,
+    pub stale: bool,
+    pub from: String,
+}
+
+pub async fn shown(state: &AppState) -> Answer<Shown> {
+    if let Some(demo) = state.demo.lock().unwrap().as_ref() {
+        return Ok(Shown {
+            ledger: demo.ledger.clone(),
+            stale: false,
+            from: "demo".into(),
+        });
+    }
+    let loaded = state.live().await.engine.load().await?;
+    Ok(Shown {
+        ledger: match &loaded.snapshot {
+            Some(s) => ledger_writer::read(&s.body)?,
+            None => Ledger::default(),
+        },
+        stale: loaded.stale,
+        from: loaded.from.to_string(),
+    })
+}
+
+/// The real ledger, for tests that check demo mode never reached it.
+#[cfg(test)]
+pub(crate) async fn ledger_of(state: &AppState) -> Ledger {
+    real(state).await.unwrap()
+}
+
+/// The real ledger, whatever the screens show: what demo mode is made from.
+async fn real(state: &AppState) -> Answer<Ledger> {
+    let loaded = state.live().await.engine.load().await?;
+    Ok(match &loaded.snapshot {
+        Some(s) => ledger_writer::read(&s.body)?,
+        None => Ledger::default(),
+    })
+}
+
+/// Turn demo mode on with this seed, or off with none. The same seed makes
+/// up the same figures; edits made in demo mode are dropped either way.
+pub async fn demo_set(state: &AppState, seed: Option<String>) -> Answer<bool> {
+    let demo = match seed {
+        Some(seed) => Some(crate::demo::Demo::new(&real(state).await?, &seed)),
+        None => None,
+    };
+    let on = demo.is_some();
+    *state.demo.lock().unwrap() = demo;
+    Ok(on)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Overview {
@@ -62,11 +116,8 @@ pub struct Overview {
 }
 
 pub async fn overview(state: &AppState) -> Answer<Overview> {
-    let loaded = state.live().await.engine.load().await?;
-    let ledger = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
+    let shown = shown(state).await?;
+    let ledger = shown.ledger;
 
     let worth = ledger_math::net_worth(&ledger);
     Ok(Overview {
@@ -77,8 +128,8 @@ pub async fn overview(state: &AppState) -> Answer<Overview> {
         monthly_budget: ledger_math::monthly_budget(&ledger).to_string(),
         bucket_cash: ledger_math::bucket_cash(&ledger).to_string(),
         accounts: ledger.accounts.len(),
-        stale: loaded.stale,
-        loaded_from: loaded.from.to_string(),
+        stale: shown.stale,
+        loaded_from: shown.from,
     })
 }
 
@@ -93,12 +144,8 @@ pub async fn apply(state: &AppState, op: Value) -> Answer<Option<Applied>> {
 pub async fn dry_run(state: &AppState, op: Value) -> Answer<Option<AuditEntry>> {
     let parsed: Op = serde_json::from_value(op)
         .map_err(|e| CommandError::Message(format!("that is not an edit this app knows: {e}")))?;
+    let mut ledger = shown(state).await?.ledger;
     let live = state.live().await;
-    let loaded = live.engine.load().await?;
-    let mut ledger = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
     match live.writer.apply(&mut ledger, &parsed) {
         Ok(entry) => Ok(Some(entry)),
         Err(WriteError::Unchanged(_)) => Ok(None),
@@ -127,6 +174,23 @@ async fn apply_as(state: &AppState, op: Value, via: &str) -> Answer<Option<Appli
     // Held across the whole edit, so a reconfiguration cannot swap the store
     // out between checking the op and queueing it.
     let live = state.live().await;
+
+    // In demo mode the made-up copy takes the edit, and nothing else does.
+    if let Some(demo) = state.demo.lock().unwrap().as_mut() {
+        let entry = match live.writer.apply(&mut demo.ledger, &parsed) {
+            Ok(entry) => entry,
+            Err(WriteError::Unchanged(_)) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+        demo.edits.push(entry.clone());
+        return Ok(Some(Applied {
+            entry,
+            queued: 0,
+            sync: SyncState::Synced {
+                version: "demo".into(),
+            },
+        }));
+    }
 
     // Checked against the current document for the same reason the op is
     // parsed early: the person is told "that bucket is locked" now, not after
@@ -227,6 +291,7 @@ pub async fn import_apply(state: &AppState, path: String, replace: bool) -> Answ
         .await
         .map_err(|e| CommandError::Message(format!("cannot read that file: {e}")))?;
     let imported = ledger_writer::import::read(&raw)?;
+    state.not_in_demo("import a ledger")?;
 
     let loaded = state.live().await.engine.load().await?;
     let holding = match &loaded.snapshot {

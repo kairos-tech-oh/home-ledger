@@ -198,11 +198,8 @@ pub async fn transactions_preview(
     text: String,
     mapping: Option<Mapping>,
 ) -> Answer<ImportPreview> {
-    let loaded = state.live().await.engine.load().await?;
-    let doc = match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    };
+    let shown = crate::commands::shown(state).await?;
+    let doc = shown.ledger;
     let Some(record) = doc.reconciliations.iter().find(|r| r.id == id) else {
         return Err(CommandError::Message("no such reconciliation".into()));
     };

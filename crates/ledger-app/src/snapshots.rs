@@ -279,6 +279,7 @@ pub async fn snapshot_import_preview(state: &AppState, path: String) -> Answer<S
 /// Adds a file's points to this machine's, then shares them. Importing the
 /// same file twice adds nothing the second time.
 pub async fn snapshot_import(state: &AppState, path: String) -> Answer<usize> {
+    state.not_in_demo("import net-worth history")?;
     let incoming = read_file(&path)?;
     let added = state
         .points()

@@ -20,6 +20,7 @@
   import { encryption } from "./encryption";
   import { ledger as ledgerApi, money, type LedgerView } from "./ledger";
   import { storage, type Setup } from "./storage";
+  import { blur, privacy, syncDemo } from "./privacy.svelte";
 
   let overview = $state<Overview | null>(null);
   let stores = $state<StoreStatus[]>([]);
@@ -96,6 +97,8 @@
     error = "";
     try {
       locked = false;
+      // Made from the real ledger, so it waits for an unlock like any read.
+      await syncDemo();
       [overview, stores, sync, setup, view] = await Promise.all([
         api.overview(),
         api.stores(),
@@ -120,7 +123,8 @@
       busy = false;
     }
     if (setup?.setupComplete) {
-      accrueOnce();
+      // Top-ups belong in the real ledger; in demo mode they wait.
+      if (!privacy.demo) accrueOnce();
       snapshotOnce();
     }
   }
@@ -165,6 +169,10 @@
 
   $effect(() => {
     load();
+  });
+
+  $effect(() => {
+    blur(privacy.blur);
   });
 
   function syncLabel(s: SyncState | null): string {
@@ -228,6 +236,13 @@
     <NameThisComputer {setup} onrenamed={(next) => (setup = next)} />
   {/if}
   {#if error}<p class="error">{error}</p>{/if}
+
+  {#if privacy.demo && !firstRun}
+    <p class="warn-box">
+      <strong>Demo mode.</strong> Every figure is made up, and edits are thrown away. Turn it
+      off in Settings.
+    </p>
+  {/if}
 
   {#if overview?.stale}
     <p class="warn-box">

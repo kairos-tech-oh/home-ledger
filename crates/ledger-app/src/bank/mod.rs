@@ -66,11 +66,7 @@ fn access_token(state: &AppState, item: &str) -> Result<String, String> {
 }
 
 async fn document(state: &AppState) -> Answer<Ledger> {
-    let loaded = state.live().await.engine.load().await?;
-    Ok(match &loaded.snapshot {
-        Some(s) => ledger_writer::read(&s.body)?,
-        None => Ledger::default(),
-    })
+    Ok(crate::commands::shown(state).await?.ledger)
 }
 
 // ------------------------------------------------------------------ views
@@ -227,6 +223,7 @@ pub fn open_in_browser(url: &str) -> bool {
 /// Starts connecting a bank, or signing an existing connection in again,
 /// and opens Plaid's page for it in the browser.
 pub async fn bank_connect(state: &AppState, item: Option<String>) -> Answer<LinkToken> {
+    state.not_in_demo("connect a bank")?;
     let plaid = client(state)?;
     let reconnect = match &item {
         Some(id) => Some(access_token(state, id).map_err(message)?),
@@ -262,6 +259,7 @@ pub async fn bank_connect_check(
     token: String,
     item: Option<String>,
 ) -> Answer<Connecting> {
+    state.not_in_demo("connect a bank")?;
     let plaid = client(state)?;
     let waiting = |state, message: String| Connecting {
         state,
@@ -370,6 +368,7 @@ pub async fn bank_link(
     account: String,
     ledger_account: String,
 ) -> Answer<BankStatus> {
+    state.not_in_demo("link a bank account")?;
     if !ledger_account.is_empty() {
         let ledger = document(state).await?;
         let Some(target) = ledger.accounts.iter().find(|a| a.id == ledger_account) else {
@@ -428,6 +427,7 @@ pub async fn bank_link(
 }
 
 pub async fn bank_disconnect(state: &AppState, item: String) -> Answer<BankStatus> {
+    state.not_in_demo("disconnect a bank")?;
     if let (Ok(plaid), Ok(access)) = (client(state), access_token(state, &item)) {
         match plaid.remove(&access).await {
             Ok(()) => {}
@@ -513,6 +513,7 @@ struct Pulled {
 
 /// Fetches new transactions and balances for every connection, or one.
 pub async fn bank_fetch(state: &AppState, only: Option<String>) -> Answer<Fetched> {
+    state.not_in_demo("fetch from the bank")?;
     let plaid = client(state)?;
     let file = banks(state).read().await.map_err(message)?;
     let mut report = Vec::new();
@@ -757,6 +758,7 @@ pub fn bank_rows(
 /// The bank's charges for one statement, ready to choose from. Fetches
 /// first when asked, so what is shown is the bank's latest.
 pub async fn bank_preview(state: &AppState, id: String, fetch: bool) -> Answer<ImportPreview> {
+    state.not_in_demo("see the bank's charges")?;
     let mut notes = Vec::new();
     if fetch {
         for item in bank_fetch(state, None).await?.items {
@@ -788,6 +790,7 @@ pub async fn bank_import(
     id: String,
     lines: Vec<Value>,
 ) -> Answer<Option<Applied>> {
+    state.not_in_demo("import bank charges")?;
     apply_via(
         state,
         json!({ "op": "reconcile-import", "id": id, "lines": lines }),
@@ -872,6 +875,7 @@ pub fn proposals(file: &store::BankFile, ledger: &Ledger) -> Vec<Proposal> {
 }
 
 pub async fn bank_balances(state: &AppState) -> Answer<Vec<Proposal>> {
+    state.not_in_demo("see the bank's balances")?;
     let file = banks(state).read().await.map_err(message)?;
     let ledger = document(state).await?;
     Ok(proposals(&file, &ledger))
@@ -879,6 +883,7 @@ pub async fn bank_balances(state: &AppState) -> Answer<Vec<Proposal>> {
 
 /// Accepts the bank's balance for each account named, one edit each.
 pub async fn bank_apply_balances(state: &AppState, accounts: Vec<String>) -> Answer<usize> {
+    state.not_in_demo("take the bank's balances")?;
     let mut done = 0;
     for p in bank_balances(state).await? {
         if p.from_buckets || !accounts.contains(&p.account_id) {

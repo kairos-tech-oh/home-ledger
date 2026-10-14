@@ -36,6 +36,7 @@ forward! {
     stores() -> Vec<StoreStatus> => cmd::stores;
     sync_state() -> SyncState => cmd::sync_state;
     flush() -> SyncState => cmd::flush;
+    demo_set(seed: Option<String>) -> bool => cmd::demo_set;
 
     dashboard(today: String, offset_minutes: i64) -> dash::DashboardView => dash::dashboard;
     planning(from: String, to: String) -> plan::PlanningView => plan::planning;

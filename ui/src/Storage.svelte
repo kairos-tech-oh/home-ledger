@@ -7,6 +7,7 @@
   import StoreForm from "./StoreForm.svelte";
   import { describe, kinds, storage, type Setup, type StoreConfig } from "./storage";
   import type { StoreStatus } from "./lib";
+  import { privacy, reshuffle, setBlur, setDemo } from "./privacy.svelte";
 
   let {
     setup,
@@ -98,6 +99,20 @@
       onchanged(result.setup);
       connectingDrive = false;
       note = `Connected ${result.label}. It joined as a backup.`;
+    } catch (e) {
+      error = String(e);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function demo(action: () => Promise<void>) {
+    busy = "demo";
+    error = "";
+    note = "";
+    try {
+      await action();
+      onchanged(setup);
     } catch (e) {
       error = String(e);
     } finally {
@@ -280,6 +295,44 @@
     <p class="note">
       Recorded against every change you make, so a shared ledger shows which machine
       an edit came from. Never taken from the computer's own name.
+    </p>
+  </div>
+
+  <div class="device">
+    <h3 class="group">Privacy</h3>
+    <label class="field check">
+      <input
+        type="checkbox"
+        checked={privacy.demo}
+        disabled={!!busy}
+        onchange={(e) => {
+          const on = e.currentTarget.checked;
+          demo(() => setDemo(on));
+        }}
+      />
+      <span>Demo mode</span>
+    </label>
+    <p class="note">
+      Every figure is made up from your ledger, so the screens look real and add up, but no
+      amount is yours. Edits change only the made-up copy and are thrown away; bank
+      connections and imports wait until it is off. Names stay as they are.
+    </p>
+    {#if privacy.demo}
+      <div class="actions">
+        <button onclick={() => demo(reshuffle)} disabled={!!busy}>New figures</button>
+      </div>
+    {/if}
+    <label class="field check">
+      <input
+        type="checkbox"
+        checked={privacy.blur}
+        onchange={(e) => setBlur(e.currentTarget.checked)}
+      />
+      <span>Blur amounts</span>
+    </label>
+    <p class="note">
+      The real figures, blurred until the pointer is over them. For working where others
+      can see the screen.
     </p>
   </div>
 
