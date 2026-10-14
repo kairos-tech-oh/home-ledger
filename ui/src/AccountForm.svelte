@@ -39,6 +39,9 @@
   const takesCredit = $derived(kind === "credit" || kind === "heloc");
   // Loans are owed too, but do not carry a credit limit.
   const owed = $derived(takesCredit || kind === "loan");
+  // With buckets kept here, the balance is their cash: changed through the
+  // buckets, never typed.
+  const fromBuckets = $derived((existing?.bucketCount ?? 0) > 0 && !owed && !secured);
 
   function submit() {
     // Only what this form owns is sent. Anything it does not know about —
@@ -49,8 +52,8 @@
       type: kind,
       institution: institution.trim(),
       notes: notes.trim(),
-      total: total.trim() === "" ? null : total.trim(),
     };
+    if (!fromBuckets) fields.total = total.trim() === "" ? null : total.trim();
     if (secured) fields.loanAccountId = loanAccountId;
     if (takesCredit) {
       fields.availableCredit = availableCredit.trim() === "" ? null : availableCredit.trim();
@@ -78,10 +81,21 @@
     <span>Institution</span>
     <input bind:value={institution} placeholder="optional" />
   </label>
-  <label class="field">
-    <span>{owed ? "Balance owed" : secured ? "What it is worth" : "Cash balance"}</span>
-    <input bind:value={total} inputmode="decimal" placeholder="leave blank for none" />
-  </label>
+  {#if fromBuckets}
+    <label class="field">
+      <span>Cash balance</span>
+      <input value={money(existing?.total ?? null)} disabled />
+    </label>
+    <p class="note">
+      The cash in its {existing?.bucketCount} bucket{existing?.bucketCount === 1 ? "" : "s"}. Change
+      it on the Buckets screen.
+    </p>
+  {:else}
+    <label class="field">
+      <span>{owed ? "Balance owed" : secured ? "What it is worth" : "Cash balance"}</span>
+      <input bind:value={total} inputmode="decimal" placeholder="leave blank for none" />
+    </label>
+  {/if}
   {#if secured}
     <label class="field">
       <span>Loan against it</span>

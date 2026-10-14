@@ -279,16 +279,25 @@ enum BucketAction {
         #[arg(long, default_value = "")]
         note: String,
     },
+    /// Spend from a bucket. More than it holds is covered by its own
+    /// "when short", unless --cover or --short says otherwise.
     Spend {
         bucket: String,
         amount: String,
         #[arg(long, default_value = "")]
         note: String,
+        /// The bucket the rest comes from.
+        #[arg(long, conflicts_with = "short")]
+        cover: Option<String>,
+        /// "everyday": the rest was paid from everyday money; "negative":
+        /// the bucket goes below zero.
+        #[arg(long, value_parser = ["everyday", "negative"])]
+        short: Option<String>,
     },
     /// Set the bucket's cash to match a real account.
     Set { bucket: String, amount: String },
-    /// Say which account a bucket's money is kept in, so spending from it
-    /// comes out of that account. With --unlinked, every bucket with none.
+    /// Say which account a bucket's money is kept in; that account then
+    /// holds what its buckets hold. With --unlinked, every bucket with none.
     Link {
         #[arg(required_unless_present = "unlinked")]
         bucket: Option<String>,
@@ -317,14 +326,12 @@ enum StatementAction {
         balance: String,
         #[arg(long)]
         date: String,
-        /// The account bucket money comes out of when it is settled.
-        /// Taken from the card's last statement when left out.
-        #[arg(long)]
-        bucket_source: Option<String>,
-        /// The account everyday spending comes out of.
+        /// The account everyday spending comes out of. Taken from the
+        /// card's last statement when left out. Bucket money leaves each
+        /// bucket's own account by itself.
         #[arg(long)]
         spend_source: Option<String>,
-        /// Settling moves only the buckets and the card, not the accounts.
+        /// Settling moves only the buckets, their accounts and the card.
         #[arg(long)]
         no_account_moves: bool,
     },
@@ -447,7 +454,16 @@ async fn run(cli: Cli) -> Outcome {
                 bucket,
                 amount,
                 note,
-            }) => write::bucket(&s, &bucket, write::BucketAction::Spend(&amount), &note).await,
+                cover,
+                short,
+            }) => {
+                let action = write::BucketAction::Spend {
+                    amount: &amount,
+                    cover: cover.as_deref(),
+                    short: short.as_deref(),
+                };
+                write::bucket(&s, &bucket, action, &note).await
+            }
             Some(BucketAction::Set { bucket, amount }) => {
                 write::bucket(&s, &bucket, write::BucketAction::Set(&amount), "").await
             }
@@ -483,7 +499,6 @@ async fn run(cli: Cli) -> Outcome {
                 card,
                 balance,
                 date,
-                bucket_source,
                 spend_source,
                 no_account_moves,
             }) => {
@@ -493,7 +508,6 @@ async fn run(cli: Cli) -> Outcome {
                         card: &card,
                         balance: &balance,
                         date: &date,
-                        bucket_source: bucket_source.as_deref(),
                         spend_source: spend_source.as_deref(),
                         account_moves: !no_account_moves,
                     },

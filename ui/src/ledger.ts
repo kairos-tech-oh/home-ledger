@@ -21,6 +21,8 @@ export interface AccountView {
   owedAgainst: string | null;
   equity: string | null;
   secures: string;
+  /** Buckets kept here; above zero, the total is their cash. */
+  bucketCount: number;
 }
 
 export interface BucketView {
@@ -763,6 +765,8 @@ export interface BalanceProposal {
   from: string | null;
   to: string;
   availableCredit: string | null;
+  /** The account holds what its buckets hold; shown, never applied. */
+  fromBuckets: boolean;
 }
 
 /** Bank connections through Plaid, with the person's own keys. */

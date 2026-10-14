@@ -37,9 +37,16 @@ pub async fn account_balance(s: &Session, account: &str, value: &str) -> Outcome
 
 pub enum BucketAction<'a> {
     Add(&'a str),
-    Spend(&'a str),
+    Spend {
+        amount: &'a str,
+        cover: Option<&'a str>,
+        short: Option<&'a str>,
+    },
     Set(&'a str),
-    Move { amount: &'a str, to: &'a str },
+    Move {
+        amount: &'a str,
+        to: &'a str,
+    },
 }
 
 /// Keeps one bucket, or every bucket with no account yet, in an account.
@@ -70,7 +77,7 @@ pub async fn bucket_link(s: &Session, bucket: Option<&str>, account: &str) -> Ou
 pub async fn bucket(s: &Session, bucket: &str, action: BucketAction<'_>, note: &str) -> Outcome {
     let v = s.view().await?;
     let b = find(&v.buckets, bucket, "bucket", |b| &b.id, |b| &b.name)?;
-    if matches!(action, BucketAction::Spend(_)) && b.account_id.is_empty() {
+    if matches!(action, BucketAction::Spend { .. }) && b.account_id.is_empty() {
         eprintln!(
             "hl: {} doesn't say which account it is kept in, so no account changes; \
              `hl bucket link \"{}\" --to <account>` sets one",
@@ -81,8 +88,21 @@ pub async fn bucket(s: &Session, bucket: &str, action: BucketAction<'_>, note: &
         BucketAction::Add(n) => json!({ "op": "bucket-adjust",
             "adjustments": [{ "id": b.id, "delta": amount(n)? }],
             "label": if note.is_empty() { "Added" } else { note } }),
-        BucketAction::Spend(n) => json!({ "op": "bucket-spend", "id": b.id,
-            "amount": amount(n)?.trim_start_matches('-'), "label": note }),
+        BucketAction::Spend {
+            amount: n,
+            cover,
+            short,
+        } => {
+            let mut op = json!({ "op": "bucket-spend", "id": b.id,
+                "amount": amount(n)?.trim_start_matches('-'), "label": note });
+            if let Some(c) = cover {
+                let from = find(&v.buckets, c, "bucket", |b| &b.id, |b| &b.name)?;
+                op["cover"] = json!({ "how": "bucket", "fromBucketId": from.id });
+            } else if let Some(how) = short {
+                op["cover"] = json!({ "how": how });
+            }
+            op
+        }
         BucketAction::Set(n) => json!({ "op": "bucket-total", "id": b.id, "amount": amount(n)? }),
         BucketAction::Move { amount: n, to } => {
             let target = find(&v.buckets, to, "bucket", |b| &b.id, |b| &b.name)?;
@@ -115,7 +135,6 @@ pub struct NewStatement<'a> {
     pub card: &'a str,
     pub balance: &'a str,
     pub date: &'a str,
-    pub bucket_source: Option<&'a str>,
     pub spend_source: Option<&'a str>,
     pub account_moves: bool,
 }
@@ -142,13 +161,8 @@ pub async fn statement_new(s: &Session, n: NewStatement<'_>) -> Outcome {
         record["cardAccountId"] = json!(a.id);
     }
     if let Some(last) = last {
-        record["bucketSourceId"] = json!(last.bucket_source_id);
         record["spendSourceId"] = json!(last.spend_source_id);
         record["adjustAccounts"] = json!(last.adjust_accounts);
-    }
-    if let Some(name) = n.bucket_source {
-        record["bucketSourceId"] =
-            json!(find(&v.accounts, name, "account", |a| &a.id, |a| &a.name)?.id);
     }
     if let Some(name) = n.spend_source {
         record["spendSourceId"] =

@@ -314,7 +314,11 @@ pub async fn balances(s: &Session, apply: bool) -> Outcome {
                 .figures(&[1, 2, 3]);
             for p in offered {
                 t.row(vec![
-                    p.account.clone(),
+                    if p.from_buckets {
+                        format!("{} (its buckets)", p.account)
+                    } else {
+                        p.account.clone()
+                    },
                     maybe_money(&p.from),
                     money(&p.to),
                     maybe_money(&p.available_credit),
@@ -322,7 +326,12 @@ pub async fn balances(s: &Session, apply: bool) -> Outcome {
                 ]);
             }
             t.print();
-            if !offered.is_empty() {
+            if offered.iter().any(|p| p.from_buckets) {
+                println!(
+                    "\nAn account kept as its buckets is never given the bank's figure; adjust its buckets"
+                );
+            }
+            if offered.iter().any(|p| !p.from_buckets) {
                 println!("\n`hl bank balances --apply` accepts them");
             }
         });

@@ -661,6 +661,46 @@ fn a_card_is_offered_what_it_owes_and_the_credit_left() {
     );
 }
 
+#[test]
+fn an_account_kept_as_its_buckets_is_shown_the_bank_figure_but_not_given_it() {
+    let savings = "f".repeat(32);
+    let file = store::BankFile {
+        items: vec![Item {
+            institution: "Fidelity".into(),
+            accounts: vec![store::Account {
+                id: "a".into(),
+                name: "Savings".into(),
+                linked: savings.clone(),
+                current: Some(Money::from(2010)),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+    };
+    let ledger = Ledger {
+        accounts: vec![ledger_domain::records::Account {
+            id: savings.clone(),
+            name: "Fidelity Savings".into(),
+            kind: "savings".into(),
+            total: Some(Money::from(2000)),
+            ..Default::default()
+        }],
+        buckets: vec![ledger_domain::records::Bucket {
+            id: "b".repeat(32),
+            name: "Japan".into(),
+            current_total: Money::from(2000),
+            linked_account_id: savings,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let offered = proposals(&file, &ledger);
+    assert_eq!(offered.len(), 1);
+    assert!(offered[0].from_buckets);
+    assert_eq!(offered[0].from.as_deref(), Some("2000.00"));
+    assert_eq!(offered[0].to, "2010.00");
+}
+
 #[tokio::test]
 async fn a_bank_account_links_only_to_a_ledger_account_of_its_kind() {
     let dir = tempfile::tempdir().unwrap();

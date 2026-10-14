@@ -87,8 +87,19 @@ impl Writer {
         let mut touched = 0usize;
         let mut first = String::new();
 
+        // An account that keeps buckets holds what they hold; a top-up
+        // there would only be undone.
+        let kept: Vec<String> = ledger
+            .accounts
+            .iter()
+            .filter(|a| crate::bucket_sum(ledger, a).is_some())
+            .map(|a| a.id.clone())
+            .collect();
         for account in ledger.accounts.iter_mut() {
-            if !account.is_retirement() || (!only.is_empty() && account.id != only) {
+            if !account.is_retirement()
+                || (!only.is_empty() && account.id != only)
+                || kept.contains(&account.id)
+            {
                 continue;
             }
             let Some(block) = account.retirement.as_mut() else {

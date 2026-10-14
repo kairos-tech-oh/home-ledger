@@ -32,8 +32,8 @@
   }
 
   // A payday adds one paycheck's worth to every bucket that earner funds, as
-  // one edit, and the same into each bucket's account: it stands for the
-  // transfer into savings. Its undo takes the same amounts back out of both.
+  // one edit: it stands for the transfer into savings. Each bucket's account
+  // follows its buckets, and the undo takes the same amounts back out.
   function payday(day: PaydayView, undo: boolean) {
     run(() =>
       ledger.apply({
@@ -52,6 +52,10 @@
   let amount = $state("");
   let label = $state("");
   let toBucket = $state("");
+  // A spend larger than the bucket: how the rest is covered, starting on the
+  // bucket's own "when short".
+  let spendHow = $state<BucketView["whenShort"]>("");
+  let spendFrom = $state("");
   let busy = $state(false);
   let error = $state("");
   let view = $state<"cards" | "table">("cards");
@@ -99,8 +103,18 @@
     amount = mode === "set" ? bucket.cash : "";
     label = "";
     toBucket = "";
+    spendHow = bucket.whenShort;
+    spendFrom = bucket.coverBucketId;
     error = "";
   }
+
+  /// What a spend takes beyond what its bucket holds, in cents.
+  const shortCents = $derived.by(() => {
+    if (moving?.mode !== "spend") return 0;
+    const asked = Math.round(Math.abs(Number(amount) || 0) * 100);
+    const held = Math.max(0, Math.round(Number(moving.bucket.cash) * 100));
+    return Math.max(0, asked - held);
+  });
 
   async function run(action: () => Promise<unknown>) {
     busy = true;
@@ -160,6 +174,9 @@
             id: bucket.id,
             amount: value.replace(/^-/, ""),
             label: label.trim(),
+            ...(shortCents > 0 && spendHow
+              ? { cover: { how: spendHow, fromBucketId: spendHow === "bucket" ? spendFrom : "" } }
+              : {}),
           }),
         );
       case "set":
@@ -285,7 +302,7 @@
       <span>Locked — funds cannot be moved out of this bucket</span>
     </label>
     <label class="field">
-      <span>When a statement needs more than it holds</span>
+      <span>When a statement or a spend needs more than it holds</span>
       <select bind:value={whenShort}>
         <option value="">Ask when settling</option>
         <option value="bucket">Take the rest from another bucket</option>
@@ -336,10 +353,32 @@
         <input bind:value={label} placeholder="optional" />
       </label>
     {/if}
+    {#if moving.mode === "spend" && shortCents > 0}
+      <label class="field">
+        <span>{moving.bucket.name} holds {money(moving.bucket.cash)}; the other {money((shortCents / 100).toFixed(2))}</span>
+        <select bind:value={spendHow} required>
+          <option value="" disabled>Choose where it comes from</option>
+          <option value="bucket">Comes from another bucket</option>
+          <option value="everyday">Was paid from everyday money</option>
+          <option value="negative">Leaves this bucket below zero</option>
+        </select>
+      </label>
+      {#if spendHow === "bucket"}
+        <label class="field">
+          <span>From</span>
+          <select bind:value={spendFrom} required>
+            <option value="" disabled>Choose a bucket</option>
+            {#each ordered.filter((b) => b.id !== moving!.bucket.id && !b.locked) as other (other.id)}
+              <option value={other.id}>{other.name} · {money(other.cash)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
+    {/if}
     {#if moving.mode === "spend"}
       <p class="note" class:warn-text={!moving.bucket.accountId}>
         {#if moving.bucket.accountId}
-          It comes out of {moving.bucket.accountName} too.
+          {moving.bucket.accountName} follows its buckets down.
         {:else}
           {moving.bucket.name} doesn't say which account it's kept in, so no account changes. Choose
           one with Edit.
@@ -349,7 +388,7 @@
       {@const into = buckets.find((b) => b.id === toBucket)}
       {#if into && moving.bucket.accountId && into.accountId && into.accountId !== moving.bucket.accountId}
         <p class="note">
-          The money moves from {moving.bucket.accountName} to {into.accountName} too.
+          {moving.bucket.accountName} and {into.accountName} follow their buckets, so the money moves between them too.
         </p>
       {/if}
     {/if}

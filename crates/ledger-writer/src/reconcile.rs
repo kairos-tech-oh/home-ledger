@@ -429,31 +429,30 @@ impl Writer {
                 None => moves.push((index, amount)),
             }
         }
-        if rec.adjust_accounts {
-            // What actually came out of buckets: a shortfall charged to
-            // everyday spending comes out of the spending account instead.
-            let taken: Money = bucket_moves.iter().map(|(_, a)| *a).sum();
-            for (source, amount, what) in [
-                (&rec.bucket_source_id, taken, "bucket money"),
-                (&rec.spend_source_id, spend, "spending"),
-            ] {
-                if amount <= Money::ZERO {
-                    continue;
-                }
-                let found = (!source.is_empty())
-                    .then(|| ledger.accounts.iter().position(|a| &a.id == source))
-                    .flatten();
-                let Some(a) = found else {
-                    return refuse(format!("choose the account the {what} comes out of"));
-                };
-                if ledger.accounts[a].total.is_none() {
-                    return refuse(format!(
-                        "{} has no balance recorded to take this from",
-                        ledger.accounts[a].name
-                    ));
-                }
-                add_move(&mut account_moves, a, amount);
+        // Bucket money leaves each bucket's own account by itself: those
+        // accounts hold what their buckets hold. Only everyday spending, and
+        // a shortfall charged to it, is taken from an account here.
+        if rec.adjust_accounts && spend > Money::ZERO {
+            let source = &rec.spend_source_id;
+            let found = (!source.is_empty())
+                .then(|| ledger.accounts.iter().position(|a| &a.id == source))
+                .flatten();
+            let Some(a) = found else {
+                return refuse("choose the account the spending comes out of");
+            };
+            if crate::bucket_sum(ledger, &ledger.accounts[a]).is_some() {
+                return refuse(format!(
+                    "{} holds only its buckets; put the spending on a bucket or take it from another account",
+                    ledger.accounts[a].name
+                ));
             }
+            if ledger.accounts[a].total.is_none() {
+                return refuse(format!(
+                    "{} has no balance recorded to take this from",
+                    ledger.accounts[a].name
+                ));
+            }
+            add_move(&mut account_moves, a, spend);
         }
         // Paying the card is part of what is recorded, so undo restores it too.
         let card = card_account(&ledger.accounts, &rec);
@@ -547,6 +546,11 @@ impl Writer {
             let Some(a) = ledger.accounts.iter().position(|a| a.id == row.id) else {
                 return refuse("an account this settled from has since been deleted");
             };
+            // An account that now holds only its buckets gets this back
+            // through them.
+            if crate::bucket_sum(ledger, &ledger.accounts[a]).is_some() {
+                continue;
+            }
             if ledger.accounts[a].total.is_none() {
                 return refuse(format!(
                     "{} no longer has a balance to return this to",
@@ -717,12 +721,12 @@ mod tests {
         let car = make(
             &mut ledger,
             Kind::Bucket,
-            json!({ "name": "Car", "currentTotal": 500 }),
+            json!({ "name": "Car", "currentTotal": 500, "linkedAccountId": sav }),
         );
         let bills = make(
             &mut ledger,
             Kind::Bucket,
-            json!({ "name": "Bills", "currentTotal": 40 }),
+            json!({ "name": "Bills", "currentTotal": 40, "linkedAccountId": sav }),
         );
         Setup {
             ledger,
@@ -787,7 +791,8 @@ mod tests {
         settle(&mut s.ledger, &rid).unwrap();
         assert_eq!(balance(&s.ledger, "Car"), Money::from(200));
         assert_eq!(balance(&s.ledger, "Bills"), Money::from(40));
-        assert_eq!(balance(&s.ledger, "Savings"), Money::from(700));
+        // Savings holds only its buckets, so it follows Car down.
+        assert_eq!(balance(&s.ledger, "Savings"), Money::from(240));
         assert_eq!(balance(&s.ledger, "Checking"), Money::from(150));
         assert_eq!(balance(&s.ledger, "Sapphire"), Money::ZERO);
         assert_eq!(s.ledger.reconciliations[0].status, "settled");
@@ -1204,7 +1209,7 @@ mod cover_tests {
     }
 
     /// Groceries holds 120 and a statement takes 180 from it; checking pays
-    /// everyday spending and savings pays bucket money.
+    /// everyday spending, and savings holds both buckets, so 620.
     fn setup(groceries: Value) -> Setup {
         let mut ledger = Ledger::default();
         let checking = make(
@@ -1220,9 +1225,9 @@ mod cover_tests {
         let overflow = make(
             &mut ledger,
             Kind::Bucket,
-            json!({ "name": "Overflow", "currentTotal": 500 }),
+            json!({ "name": "Overflow", "currentTotal": 500, "linkedAccountId": savings }),
         );
-        let mut g = json!({ "name": "Groceries", "currentTotal": 120 });
+        let mut g = json!({ "name": "Groceries", "currentTotal": 120, "linkedAccountId": savings });
         for (k, v) in groceries.as_object().unwrap() {
             g[k] = if v == "OVERFLOW" {
                 json!(overflow)
@@ -1300,7 +1305,32 @@ mod cover_tests {
         assert_eq!(cash(&s.ledger, "Groceries"), Money::from(120));
         assert_eq!(cash(&s.ledger, "Overflow"), Money::from(500));
         assert_eq!(cash(&s.ledger, "Checking"), Money::from(1000));
-        assert_eq!(cash(&s.ledger, "Savings"), Money::from(5000));
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(620));
+    }
+
+    #[test]
+    fn spending_cannot_be_taken_from_an_account_that_holds_only_buckets() {
+        let mut s = setup(json!({}));
+        let savings = s.ledger.accounts[1].id.clone();
+        let mut record = serde_json::to_value(&s.ledger.reconciliations[0]).unwrap();
+        record["spendSourceId"] = json!(savings);
+        apply(
+            &mut s.ledger,
+            Op::ReconcileSet {
+                id: s.statement.clone(),
+                record,
+            },
+        )
+        .unwrap();
+        let err = {
+            let c = cover(&s, "everyday", "");
+            settle(&mut s, c)
+        }
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("Savings holds only its buckets"), "{err}");
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(120));
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(620));
     }
 
     #[test]
@@ -1322,8 +1352,8 @@ mod cover_tests {
         .unwrap();
         assert_eq!(cash(&s.ledger, "Groceries"), Money::ZERO);
         assert_eq!(cash(&s.ledger, "Overflow"), Money::from(440));
-        // All 180 was bucket money, so it all came out of savings.
-        assert_eq!(cash(&s.ledger, "Savings"), Money::from(4820));
+        // All 180 was bucket money, so savings follows its buckets down.
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(440));
         assert_eq!(cash(&s.ledger, "Checking"), Money::from(980));
         undo_restores(&mut s);
     }
@@ -1337,8 +1367,8 @@ mod cover_tests {
         }
         .unwrap();
         assert_eq!(cash(&s.ledger, "Groceries"), Money::ZERO);
-        // 120 from the bucket via savings; the other 60 joins the 20 of gas.
-        assert_eq!(cash(&s.ledger, "Savings"), Money::from(4880));
+        // 120 from the bucket, so from savings; the other 60 joins the 20 of gas.
+        assert_eq!(cash(&s.ledger, "Savings"), Money::from(500));
         assert_eq!(cash(&s.ledger, "Checking"), Money::from(920));
         undo_restores(&mut s);
     }

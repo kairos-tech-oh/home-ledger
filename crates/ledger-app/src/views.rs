@@ -53,6 +53,9 @@ pub struct AccountView {
     pub equity: Option<String>,
     /// On a loan, the property or vehicle it is secured against.
     pub secures: String,
+    /// How many buckets are kept here. Above zero, the total is their cash
+    /// and cannot be typed.
+    pub bucket_count: usize,
 }
 
 #[derive(Serialize)]
@@ -470,6 +473,14 @@ fn accounts_of(doc: &Ledger) -> Vec<AccountView> {
                 debts: amount(debts),
                 debt_count: account.debts.len(),
                 net: amount(net),
+                bucket_count: if ledger_writer::bucket_sum(doc, account).is_some() {
+                    doc.buckets
+                        .iter()
+                        .filter(|b| b.linked_account_id == account.id)
+                        .count()
+                } else {
+                    0
+                },
             }
         })
         .collect()

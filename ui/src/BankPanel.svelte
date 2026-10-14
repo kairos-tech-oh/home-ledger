@@ -158,7 +158,7 @@
     return run("balances", async () => {
       await bank.fetch(null);
       proposals = await bank.balances();
-      accept = proposals.map((p) => p.accountId);
+      accept = proposals.filter((p) => !p.fromBuckets).map((p) => p.accountId);
       await load();
     });
   }
@@ -297,6 +297,15 @@
           statement sets what it owes.
         </p>
         {#each proposals as p (p.accountId)}
+          {#if p.fromBuckets}
+            {@const gap = Number(p.to) - Number(p.from ?? 0)}
+            <p class="note">
+              <strong>{p.account}</strong> holds what its buckets hold, {money(p.from)}; the bank
+              says {money(p.to)}, {money(Math.abs(gap).toFixed(2))} {gap > 0 ? "more" : "less"}. Adjust the buckets
+              to match.
+              <span class="muted small">({p.institution} {p.bankAccount})</span>
+            </p>
+          {:else}
           <label class="field check">
             <input type="checkbox" bind:group={accept} value={p.accountId} />
             <span>
@@ -305,10 +314,11 @@
               <span class="muted small">({p.institution} {p.bankAccount})</span>
             </span>
           </label>
+          {/if}
         {/each}
       {/if}
       <div class="actions">
-        {#if proposals.length}
+        {#if proposals.some((p) => !p.fromBuckets)}
           <button onclick={acceptBalances} disabled={!!busy || accept.length === 0}>
             Accept {accept.length}
           </button>

@@ -11,11 +11,21 @@ described here but have no tags of their own.
 ## [Unreleased]
 
 ### Changed
-- A payday puts its money into each bucket's account as well as the bucket:
-  "Add all" stands for the transfer of that paycheck's savings into, say,
-  Fidelity Savings, and its undo takes it back out of both. Before this the
-  account only ever went down, so it drifted below the bank's figure. The
-  account the paycheck lands in is left as it is.
+- An account that keeps buckets now holds exactly the cash in them, worked
+  out every time, so Fidelity Savings can no longer drift from its buckets.
+  Every bucket edit moves its account: spends, paydays and their undo, adds,
+  hand-set balances, moves and statement settles. Accounts without buckets
+  keep the balance typed for them. Its balance cannot be typed in the
+  Accounts popup, and a Plaid balance is shown against it with the gap rather
+  than written over it.
+- Settling a statement no longer asks where bucket money comes from; each
+  bucket's own account follows it. Only everyday spending is taken from a
+  chosen account, and not from one that holds only buckets. `hl statement
+  new` drops `--bucket-source`.
+- A spend larger than its bucket is covered like a statement: by the bucket's
+  "when short" (another bucket, everyday money, or below zero), or as chosen
+  in the spend panel or with `hl bucket spend --cover <bucket>` / `--short
+  everyday|negative`. With neither, it is refused.
 
 ## [0.2.9] - 2026-10-07
 

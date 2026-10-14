@@ -14,7 +14,9 @@ Before settling, the Reconcile page shows each bucket that the open statements
 together need more from than it holds, and each statement that is short on
 its own. Settling such a statement covers the rest one of three ways: from
 another bucket, which must be unlocked and hold enough; as everyday spending,
-from the spending account; or by letting the bucket go below zero. The choice
+from the spending account; or by letting the bucket go below zero. Bucket
+money leaves each bucket's own account by itself, since an account that keeps
+buckets holds what they hold. The choice
 comes from the settle itself, or from the bucket's remembered default. With
 neither, the settle is refused and nothing moves. Every move is recorded, so
 undo restores every bucket and account exactly. A bucket below zero cannot be

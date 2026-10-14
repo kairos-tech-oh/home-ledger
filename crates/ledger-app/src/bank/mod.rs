@@ -809,6 +809,9 @@ pub struct Proposal {
     pub to: String,
     /// For a card or credit line, what is left to spend, as the bank says.
     pub available_credit: Option<String>,
+    /// The account holds what its buckets hold, so the bank's figure is
+    /// shown against them and never written over them.
+    pub from_buckets: bool,
 }
 
 /// Each linked account's balance at the bank, where it differs from the
@@ -861,6 +864,7 @@ pub fn proposals(file: &store::BankFile, ledger: &Ledger) -> Vec<Proposal> {
                 from: account.total.map(|m| m.to_string()),
                 to: to.to_string(),
                 available_credit: available_credit.map(|m| m.to_string()),
+                from_buckets: ledger_writer::bucket_sum(ledger, account).is_some(),
             });
         }
     }
@@ -877,7 +881,7 @@ pub async fn bank_balances(state: &AppState) -> Answer<Vec<Proposal>> {
 pub async fn bank_apply_balances(state: &AppState, accounts: Vec<String>) -> Answer<usize> {
     let mut done = 0;
     for p in bank_balances(state).await? {
-        if !accounts.contains(&p.account_id) {
+        if p.from_buckets || !accounts.contains(&p.account_id) {
             continue;
         }
         let mut record = json!({ "total": p.to });

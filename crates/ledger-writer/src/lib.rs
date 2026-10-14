@@ -130,14 +130,16 @@ pub enum Op {
         #[serde(default)]
         label: String,
     },
-    /// Money spent out of a bucket. It leaves the bucket and the account the
-    /// bucket is kept in together, as it left the real account. A bucket
-    /// with no account changes alone.
+    /// Money spent out of a bucket. The account the bucket is kept in follows
+    /// it down. More than the bucket holds is covered as asked, or by the
+    /// bucket's own "when short"; with neither the spend is refused.
     BucketSpend {
         id: String,
         amount: Money,
         #[serde(default)]
         label: String,
+        #[serde(default)]
+        cover: Option<reconcile::Cover>,
     },
     /// Keep each listed bucket in one account, as one edit.
     BucketsLink {
@@ -290,12 +292,17 @@ impl Writer {
     /// Either the document is changed and an entry returned, or an error is
     /// returned and the document is untouched — never half of each.
     pub fn apply(&self, ledger: &mut Ledger, op: &Op) -> Result<AuditEntry, WriteError> {
-        let entry = match op {
+        let mut entry = match op {
             Op::Set { kind, id, record } => self.set(ledger, *kind, id, record)?,
             Op::Delete { kind, id } => self.delete(ledger, *kind, id)?,
             Op::BucketAdjust { adjustments, label } => self.adjust(ledger, adjustments, label)?,
             Op::BucketDeposit { adjustments, label } => self.deposit(ledger, adjustments, label)?,
-            Op::BucketSpend { id, amount, label } => self.spend(ledger, id, *amount, label)?,
+            Op::BucketSpend {
+                id,
+                amount,
+                label,
+                cover,
+            } => self.spend(ledger, id, *amount, label, cover.as_ref())?,
             Op::BucketsLink { ids, account_id } => self.link(ledger, ids, account_id)?,
             Op::BucketTotal { id, amount } => self.bucket_total(ledger, id, *amount)?,
             Op::BucketMove {
@@ -326,6 +333,13 @@ impl Writer {
             Op::DashboardSet { dashboard } => self.dashboard_set(ledger, dashboard)?,
             Op::AccountOrderSet { order } => self.account_order_set(ledger, order)?,
         };
+        // Whatever moved a bucket moved its account with it, and the history
+        // says so.
+        for change in bucket_balances(ledger) {
+            if entry.changes.len() < caps::CHANGES {
+                entry.changes.push(change);
+            }
+        }
         Ok(entry)
     }
 
@@ -402,6 +416,14 @@ impl Writer {
             Kind::Account => {
                 let record = clean::account(from_json(&merged)?, keep)?;
                 check_secured_loan(ledger, &record)?;
+                if let Some(sum) = bucket_sum(ledger, &record)
+                    && record.total != Some(sum)
+                {
+                    return Err(WriteError::Refused(format!(
+                        "{} holds what its buckets hold, {sum}; change the buckets instead",
+                        record.name
+                    )));
+                }
                 let name = record.name.clone();
                 (store(&mut ledger.accounts, record, |a| &a.id)?, name)
             }
@@ -564,49 +586,15 @@ impl Writer {
         ))
     }
 
-    /// The adjustment, plus the same money into (or back out of) each
-    /// bucket's account: one change per account, however many of its buckets
-    /// moved. Each account moves by the whole amount asked, as the real
-    /// transfer did, even where a bucket's floor kept it from going lower.
+    /// A payday's transfer into savings, or its undo. The buckets move as an
+    /// adjustment does, and each account they are kept in follows them.
     fn deposit(
         &self,
         ledger: &mut Ledger,
         adjustments: &[Adjustment],
         label: &str,
     ) -> Result<AuditEntry, WriteError> {
-        // Every account found before anything moves, so a missing one
-        // refuses the whole edit.
-        let mut per_account: Vec<(usize, Money)> = Vec::new();
-        for row in adjustments {
-            let id = valid_id(&row.id);
-            let Some(bucket) = ledger.buckets.iter().find(|b| b.id == id) else {
-                continue; // adjust refuses it below, before anything moves
-            };
-            if bucket.linked_account_id.is_empty() {
-                continue;
-            }
-            let Some(at) = ledger
-                .accounts
-                .iter()
-                .position(|a| a.id == bucket.linked_account_id)
-            else {
-                return Err(WriteError::Missing(format!(
-                    "{}'s account no longer exists; choose another for it",
-                    bucket.name
-                )));
-            };
-            match per_account.iter_mut().find(|(i, _)| *i == at) {
-                Some((_, sum)) => *sum += row.delta,
-                None => per_account.push((at, row.delta)),
-            }
-        }
-
         let mut entry = self.adjust(ledger, adjustments, label)?;
-        for (at, arrived) in per_account {
-            if !arrived.is_zero() {
-                entry.changes.push(draw(&mut ledger.accounts[at], -arrived));
-            }
-        }
         entry.op = "bucket-deposit".into();
         Ok(entry)
     }
@@ -746,44 +734,18 @@ impl Writer {
             )));
         }
 
-        // Between buckets kept in two different accounts, the money moves
-        // between the accounts as well. Within one account, or where either
-        // bucket has none, the accounts are as they were. Found before
-        // anything moves, so a refusal leaves everything as it was.
-        let from_account = ledger.buckets[source].linked_account_id.clone();
-        let to_account = ledger.buckets[target].linked_account_id.clone();
-        let accounts =
-            if !from_account.is_empty() && !to_account.is_empty() && from_account != to_account {
-                match (
-                    ledger.accounts.iter().position(|a| a.id == from_account),
-                    ledger.accounts.iter().position(|a| a.id == to_account),
-                ) {
-                    (Some(out_of), Some(into)) => Some((out_of, into)),
-                    _ => {
-                        return Err(WriteError::Missing(
-                            "a bucket's account no longer exists".into(),
-                        ));
-                    }
-                }
-            } else {
-                None
-            };
-
+        // Between buckets kept in two different accounts, the accounts follow
+        // their buckets, so the money moves between them too.
         let from_before = ledger.buckets[source].current_total;
         let to_before = ledger.buckets[target].current_total;
         ledger.buckets[source].current_total = from_before - amount;
         ledger.buckets[target].current_total = to_before + amount;
-        let mut account_changes = Vec::new();
-        if let Some((out_of, into)) = accounts {
-            account_changes.push(draw(&mut ledger.accounts[out_of], amount));
-            account_changes.push(draw(&mut ledger.accounts[into], -amount));
-        }
 
         let name = format!(
             "{} → {}",
             ledger.buckets[source].name, ledger.buckets[target].name
         );
-        let mut changes = vec![
+        let changes = vec![
             AuditChange {
                 field: ledger.buckets[source].name.clone(),
                 from: from_before.to_string(),
@@ -795,7 +757,6 @@ impl Writer {
                 to: ledger.buckets[target].current_total.to_string(),
             },
         ];
-        changes.extend(account_changes);
 
         Ok(self.finish(
             AuditEntry {
@@ -816,6 +777,7 @@ impl Writer {
         id: &str,
         amount: Money,
         label: &str,
+        cover: Option<&reconcile::Cover>,
     ) -> Result<AuditEntry, WriteError> {
         let amount = Money::new(amount.inner().abs());
         if amount.is_zero() {
@@ -825,43 +787,83 @@ impl Writer {
         let Some(index) = ledger.buckets.iter().position(|b| b.id == wanted) else {
             return Err(WriteError::Missing("no such bucket".into()));
         };
-        let account = match ledger.buckets[index].linked_account_id.as_str() {
-            "" => None,
-            linked => match ledger.accounts.iter().position(|a| a.id == linked) {
-                Some(i) => Some(i),
-                None => {
-                    return Err(WriteError::Missing(format!(
-                        "{}'s account no longer exists; choose another for it",
-                        ledger.buckets[index].name
+
+        // A bucket holding less is covered the way a statement covers it: as
+        // asked, or by the bucket's own "when short". Every check runs before
+        // anything moves. The accounts follow their buckets.
+        let bucket = &ledger.buckets[index];
+        let held = bucket.current_total.floor_at_zero();
+        let mut moves: Vec<(usize, Money)> = vec![(index, amount)];
+        if held < amount {
+            let short = amount - held;
+            let how = cover
+                .map(|c| c.how.as_str())
+                .filter(|h| !h.is_empty())
+                .unwrap_or(bucket.when_short.as_str());
+            match how {
+                "bucket" => {
+                    let from_id = cover
+                        .map(|c| c.from_bucket_id.as_str())
+                        .filter(|f| !f.is_empty())
+                        .unwrap_or(bucket.cover_bucket_id.as_str());
+                    let Some(f) = ledger
+                        .buckets
+                        .iter()
+                        .position(|x| x.id == from_id && x.id != bucket.id)
+                    else {
+                        return Err(WriteError::Refused(format!(
+                            "choose the bucket the other {short} for {} comes from",
+                            bucket.name
+                        )));
+                    };
+                    let from = &ledger.buckets[f];
+                    if from.locked {
+                        return Err(WriteError::Refused(format!(
+                            "{} is locked, so it cannot cover {}",
+                            from.name, bucket.name
+                        )));
+                    }
+                    if from.current_total.floor_at_zero() < short {
+                        return Err(WriteError::Refused(format!(
+                            "{} holds {} but would give up {short}",
+                            from.name,
+                            from.current_total.floor_at_zero()
+                        )));
+                    }
+                    moves = vec![(index, held), (f, short)];
+                }
+                // The rest was paid from everyday money, not from savings.
+                "everyday" => moves = vec![(index, held)],
+                "negative" => {}
+                _ => {
+                    return Err(WriteError::Refused(format!(
+                        "{} holds {held} but this spends {amount}; choose where the other {short} comes from",
+                        bucket.name
                     )));
                 }
-            },
-        };
+            }
+        }
 
-        // The bucket never goes below zero, as with any spend, but the
-        // account loses the whole amount: that is what left the real one.
-        let bucket = &mut ledger.buckets[index];
-        let before = bucket.current_total;
-        let floor = if before.is_negative() {
-            before
-        } else {
-            Money::ZERO
-        };
-        bucket.current_total = (before - amount).max(floor);
-        let mut changes = vec![AuditChange {
-            field: bucket.name.clone(),
-            from: before.to_string(),
-            to: bucket.current_total.to_string(),
-        }];
+        let mut changes = Vec::new();
+        for (b, out) in moves {
+            if out.is_zero() {
+                continue;
+            }
+            let bucket = &mut ledger.buckets[b];
+            let before = bucket.current_total;
+            bucket.current_total = before - out;
+            changes.push(AuditChange {
+                field: bucket.name.clone(),
+                from: before.to_string(),
+                to: bucket.current_total.to_string(),
+            });
+        }
         let named = plain(label, NAME_MAX);
         let name = if named.is_empty() {
-            format!("Spent from {}", bucket.name)
+            format!("Spent from {}", ledger.buckets[index].name)
         } else {
             named
         };
-        if let Some(i) = account {
-            changes.push(draw(&mut ledger.accounts[i], amount));
-        }
 
         Ok(self.finish(
             AuditEntry {
@@ -939,33 +941,57 @@ fn holds_money(account: &ledger_domain::records::Account) -> bool {
     !account.is_liability() && !account.can_secure_a_loan()
 }
 
-/// Money leaving an account, or arriving when negative. On a card or loan
-/// it is owed instead, and a card's credit left goes down with it.
-fn draw(account: &mut ledger_domain::records::Account, out: Money) -> AuditChange {
-    let before = account.total.unwrap_or(Money::ZERO);
-    let after = if account.is_liability() {
-        if let Some(room) = account.available_credit {
-            account.available_credit = Some(room - out);
-        }
-        before + out
-    } else {
-        before - out
-    };
-    account.total = Some(after);
-    AuditChange {
-        field: account.name.clone(),
-        from: before.to_string(),
-        to: after.to_string(),
+/// What an account holds when buckets are kept in it: the cash in those
+/// buckets, and nothing else. `None` for an account whose balance is typed.
+/// Holdings and Roth contributions credited to a bucket are not counted;
+/// they sit in other accounts.
+pub fn bucket_sum(ledger: &Ledger, account: &ledger_domain::records::Account) -> Option<Money> {
+    if account.id.is_empty() || !holds_money(account) {
+        return None;
     }
+    let mut kept = ledger
+        .buckets
+        .iter()
+        .filter(|b| b.linked_account_id == account.id)
+        .peekable();
+    kept.peek()?;
+    Some(kept.map(|b| b.current_total).sum())
+}
+
+/// Set every account that keeps buckets to the cash in them, and say which
+/// moved. The buckets are the record; the account follows.
+pub fn bucket_balances(ledger: &mut Ledger) -> Vec<AuditChange> {
+    let sums: Vec<(usize, Money)> = ledger
+        .accounts
+        .iter()
+        .enumerate()
+        .filter_map(|(i, a)| bucket_sum(ledger, a).map(|sum| (i, sum)))
+        .collect();
+    let mut changes = Vec::new();
+    for (i, sum) in sums {
+        let account = &mut ledger.accounts[i];
+        if account.total == Some(sum) {
+            continue;
+        }
+        changes.push(AuditChange {
+            field: account.name.clone(),
+            from: account.total.map(|m| m.to_string()).unwrap_or_default(),
+            to: sum.to_string(),
+        });
+        account.total = Some(sum);
+    }
+    changes
 }
 
 // ------------------------------------------------------------------ helpers
 
 /// Parse a document the way every screen and replay should see it: with card
-/// balances brought in line with their open statements.
+/// balances brought in line with their open statements, and each account that
+/// keeps buckets holding what its buckets hold.
 pub fn read(bytes: &[u8]) -> Result<Ledger, serde_json::Error> {
     let mut ledger = Ledger::from_bytes(bytes)?;
     reconcile::card_balances(&mut ledger);
+    bucket_balances(&mut ledger);
     Ok(ledger)
 }
 
@@ -1693,14 +1719,91 @@ mod tests {
                 id: bucket.into(),
                 amount,
                 label: "Mortgage Payment".into(),
+                cover: None,
             },
         )
+    }
+
+    fn bucket_mut<'a>(ledger: &'a mut Ledger, id: &str) -> &'a mut ledger_domain::records::Bucket {
+        ledger.buckets.iter_mut().find(|x| x.id == id).unwrap()
+    }
+
+    fn cash(ledger: &Ledger, id: &str) -> Money {
+        ledger.bucket(id).unwrap().current_total
+    }
+
+    #[test]
+    fn an_account_with_buckets_holds_what_they_hold() {
+        let mut ledger = Ledger::default();
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 28608);
+        let mortgage = bucket_with(&mut ledger, "Mortgage", 1896);
+        let japan = bucket_with(&mut ledger, "Japan", 104);
+        let entry = link(&mut ledger, &[&mortgage, &japan], &fidelity);
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(2000));
+        assert!(
+            entry
+                .changes
+                .iter()
+                .any(|c| c.field == "Fidelity Savings" && c.to == "2000.00"),
+            "the history says the account moved: {:?}",
+            entry.changes
+        );
+
+        // Typing another balance is refused; saving the same one is not.
+        let typed = writer().apply(
+            &mut ledger,
+            &Op::Set {
+                kind: Kind::Account,
+                id: fidelity.clone(),
+                record: json!({ "total": 5000 }),
+            },
+        );
+        assert!(matches!(typed, Err(WriteError::Refused(_))));
+        writer()
+            .apply(
+                &mut ledger,
+                &Op::Set {
+                    kind: Kind::Account,
+                    id: fidelity.clone(),
+                    record: json!({ "total": 2000, "notes": "joint" }),
+                },
+            )
+            .unwrap();
+
+        // Read back from bytes, a stale stored figure gives way too.
+        ledger.accounts[0].total = Some(Money::from(1));
+        let read = read(&ledger.to_bytes().unwrap()).unwrap();
+        assert_eq!(total_of(&read, &fidelity), Money::from(2000));
+    }
+
+    #[test]
+    fn an_account_with_no_buckets_keeps_its_typed_balance() {
+        let mut ledger = Ledger::default();
+        let chase = account_with(&mut ledger, "Chase Joint", "checking", 1255);
+        let loose = bucket_with(&mut ledger, "Loose", 100);
+        spend(&mut ledger, &loose, Money::from(30)).unwrap();
+        assert_eq!(total_of(&ledger, &chase), Money::from(1255));
+        writer()
+            .apply(
+                &mut ledger,
+                &Op::Set {
+                    kind: Kind::Account,
+                    id: chase.clone(),
+                    record: json!({ "total": 900 }),
+                },
+            )
+            .unwrap();
+        assert_eq!(total_of(&ledger, &chase), Money::from(900));
+        assert!(matches!(
+            spend(&mut ledger, &loose, Money::ZERO),
+            Err(WriteError::Unchanged(_))
+        ));
     }
 
     #[test]
     fn a_spend_leaves_the_bucket_and_its_account_together() {
         let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 28608);
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 0);
         let mortgage = bucket_with(&mut ledger, "Mortgage", 1896);
         link(&mut ledger, &[&mortgage], &fidelity);
 
@@ -1709,42 +1812,89 @@ mod tests {
         assert_eq!(entry.action, "Spend");
         assert_eq!(entry.name, "Mortgage Payment");
         assert_eq!(entry.amount, Some(-paid));
-        assert_eq!(
-            ledger.bucket(&mortgage).unwrap().current_total.to_string(),
-            "144.39"
-        );
-        assert_eq!(total_of(&ledger, &fidelity).to_string(), "26856.39");
+        assert_eq!(cash(&ledger, &mortgage).to_string(), "144.39");
+        assert_eq!(total_of(&ledger, &fidelity).to_string(), "144.39");
         assert_eq!(entry.changes.len(), 2, "the bucket and the account");
         assert_eq!(entry.changes[1].field, "Fidelity Savings");
     }
 
     #[test]
-    fn the_account_loses_all_of_a_spend_the_bucket_could_not_cover() {
+    fn a_short_spend_is_covered_as_the_bucket_says() {
         let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 0);
         let small = bucket_with(&mut ledger, "Small", 40);
-        link(&mut ledger, &[&small], &fidelity);
-        spend(&mut ledger, &small, Money::from(100)).unwrap();
-        assert_eq!(ledger.bucket(&small).unwrap().current_total, Money::ZERO);
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(900));
+        let big = bucket_with(&mut ledger, "Emergency", 500);
+        link(&mut ledger, &[&small, &big], &fidelity);
+
+        // With no rule and nothing asked, nothing moves.
+        let Err(WriteError::Refused(why)) = spend(&mut ledger, &small, Money::from(100)) else {
+            panic!("a short spend with no cover went through");
+        };
+        assert!(why.contains("the other 60"), "{why}");
+        assert_eq!(cash(&ledger, &small), Money::from(40));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(540));
+
+        // The bucket's own rule: the rest from the designated bucket.
+        bucket_mut(&mut ledger, &small).when_short = "bucket".into();
+        bucket_mut(&mut ledger, &small).cover_bucket_id = big.clone();
+        let entry = spend(&mut ledger, &small, Money::from(100)).unwrap();
+        assert_eq!(cash(&ledger, &small), Money::ZERO);
+        assert_eq!(cash(&ledger, &big), Money::from(440));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(440));
+        assert_eq!(entry.amount, Some(Money::from(-100)));
+
+        // Asked at the time, over the rule: let it go negative.
+        let negative = reconcile::Cover {
+            how: "negative".into(),
+            ..Default::default()
+        };
+        writer()
+            .apply(
+                &mut ledger,
+                &Op::BucketSpend {
+                    id: small.clone(),
+                    amount: Money::from(25),
+                    label: String::new(),
+                    cover: Some(negative),
+                },
+            )
+            .unwrap();
+        assert_eq!(cash(&ledger, &small), Money::from(-25));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(415));
+
+        // Paid from everyday money: only what the bucket held leaves savings.
+        bucket_mut(&mut ledger, &big).when_short = "everyday".into();
+        spend(&mut ledger, &big, Money::from(1000)).unwrap();
+        assert_eq!(cash(&ledger, &big), Money::ZERO);
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(-25));
     }
 
     #[test]
-    fn a_spend_from_a_bucket_with_no_account_changes_only_the_bucket() {
+    fn a_cover_bucket_that_is_locked_or_too_small_refuses() {
         let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
-        let loose = bucket_with(&mut ledger, "Loose", 100);
-        let entry = spend(&mut ledger, &loose, Money::from(30)).unwrap();
-        assert_eq!(entry.changes.len(), 1);
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(1000));
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 0);
+        let small = bucket_with(&mut ledger, "Small", 10);
+        let cover = bucket_with(&mut ledger, "Cover", 30);
+        link(&mut ledger, &[&small, &cover], &fidelity);
+        bucket_mut(&mut ledger, &small).when_short = "bucket".into();
+        bucket_mut(&mut ledger, &small).cover_bucket_id = cover.clone();
+
         assert!(matches!(
-            spend(&mut ledger, &loose, Money::ZERO),
-            Err(WriteError::Unchanged(_))
+            spend(&mut ledger, &small, Money::from(50)),
+            Err(WriteError::Refused(_))
         ));
+        bucket_mut(&mut ledger, &cover).locked = true;
+        assert!(matches!(
+            spend(&mut ledger, &small, Money::from(20)),
+            Err(WriteError::Refused(_))
+        ));
+        assert_eq!(cash(&ledger, &small), Money::from(10));
+        assert_eq!(cash(&ledger, &cover), Money::from(30));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(40));
     }
 
     #[test]
-    fn a_spend_from_a_bucket_kept_on_a_card_is_owed() {
+    fn a_bucket_kept_on_a_card_is_not_counted_in_it() {
         let mut ledger = Ledger::default();
         let card = make(
             &mut ledger,
@@ -1761,28 +1911,23 @@ mod tests {
             },
         );
         assert!(matches!(refused, Err(WriteError::Refused(_))));
-        ledger
-            .buckets
-            .iter_mut()
-            .find(|x| x.id == bucket)
-            .unwrap()
-            .linked_account_id = card.clone();
+        bucket_mut(&mut ledger, &bucket).linked_account_id = card.clone();
         spend(&mut ledger, &bucket, Money::from(50)).unwrap();
         let account = ledger.account(&card).unwrap();
-        assert_eq!(account.total, Some(Money::from(250)));
-        assert_eq!(account.available_credit, Some(Money::from(750)));
+        assert_eq!(account.total, Some(Money::from(200)));
+        assert_eq!(account.available_credit, Some(Money::from(800)));
     }
 
     #[test]
-    fn an_adjustment_and_its_reverse_leave_accounts_alone() {
+    fn an_adjustment_moves_the_account_with_the_bucket() {
         let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
-        let bucket = bucket_with(&mut ledger, "Mortgage", 0);
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 0);
+        let bucket = bucket_with(&mut ledger, "Mortgage", 125);
         link(&mut ledger, &[&bucket], &fidelity);
-        for delta in [875, -875] {
+        let adjust = |ledger: &mut Ledger, delta: i64| {
             writer()
                 .apply(
-                    &mut ledger,
+                    ledger,
                     &Op::BucketAdjust {
                         adjustments: vec![Adjustment {
                             id: bucket.clone(),
@@ -1791,19 +1936,32 @@ mod tests {
                         label: "payday".into(),
                     },
                 )
-                .unwrap();
-        }
+                .unwrap()
+        };
+        adjust(&mut ledger, 875);
         assert_eq!(total_of(&ledger, &fidelity), Money::from(1000));
+        adjust(&mut ledger, -875);
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(125));
+        writer()
+            .apply(
+                &mut ledger,
+                &Op::BucketTotal {
+                    id: bucket.clone(),
+                    amount: Money::from(300),
+                },
+            )
+            .unwrap();
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(300));
     }
 
     #[test]
     fn a_move_between_accounts_moves_the_money_between_them() {
         let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
-        let chase = account_with(&mut ledger, "Chase Joint", "checking", 100);
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 0);
+        let chase = account_with(&mut ledger, "Chase Joint", "checking", 0);
         let a = bucket_with(&mut ledger, "A", 300);
         let b = bucket_with(&mut ledger, "B", 0);
-        let c = bucket_with(&mut ledger, "C", 0);
+        let c = bucket_with(&mut ledger, "C", 100);
         link(&mut ledger, &[&a, &b], &fidelity);
         link(&mut ledger, &[&c], &chase);
         let mv = |ledger: &mut Ledger, from: &str, to: &str| {
@@ -1817,27 +1975,17 @@ mod tests {
             )
         };
 
-        mv(&mut ledger, &a, &b).unwrap();
+        let entry = mv(&mut ledger, &a, &b).unwrap();
         assert_eq!(
             total_of(&ledger, &fidelity),
-            Money::from(1000),
+            Money::from(300),
             "one account"
         );
+        assert_eq!(entry.changes.len(), 2);
         let entry = mv(&mut ledger, &a, &c).unwrap();
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(950));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(250));
         assert_eq!(total_of(&ledger, &chase), Money::from(150));
         assert_eq!(entry.changes.len(), 4);
-
-        // A bucket whose account has gone refuses, and nothing moves.
-        ledger
-            .buckets
-            .iter_mut()
-            .find(|x| x.id == c)
-            .unwrap()
-            .linked_account_id = "f".repeat(32);
-        assert!(mv(&mut ledger, &a, &c).is_err());
-        assert_eq!(ledger.bucket(&a).unwrap().current_total, Money::from(200));
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(950));
     }
 
     #[test]
@@ -1877,7 +2025,12 @@ mod tests {
         let op: Op = serde_json::from_value(json!({
             "op": "bucket-spend", "id": "a", "amount": "12.50", "label": "x" }))
         .unwrap();
-        assert!(matches!(op, Op::BucketSpend { .. }));
+        assert!(matches!(op, Op::BucketSpend { cover: None, .. }));
+        let op: Op = serde_json::from_value(json!({
+            "op": "bucket-spend", "id": "a", "amount": "12.50",
+            "cover": { "how": "bucket", "fromBucketId": "b" } }))
+        .unwrap();
+        assert!(matches!(op, Op::BucketSpend { cover: Some(_), .. }));
         let op: Op = serde_json::from_value(json!({
             "op": "buckets-link", "ids": ["a"], "accountId": "b" }))
         .unwrap();
@@ -1903,7 +2056,7 @@ mod tests {
     #[test]
     fn a_payday_puts_the_money_in_the_buckets_and_their_account() {
         let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 30000);
+        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 0);
         let chase = account_with(&mut ledger, "Chase Joint", "checking", 900);
         let mortgage = bucket_with(&mut ledger, "Mortgage", 100);
         let groceries = bucket_with(&mut ledger, "Groceries", 50);
@@ -1917,16 +2070,13 @@ mod tests {
         .unwrap();
         assert_eq!(entry.op, "bucket-deposit");
         assert_eq!(entry.action, "Add");
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(31175));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(1325));
         assert_eq!(
             total_of(&ledger, &chase),
             Money::from(900),
             "the source is not guessed at"
         );
-        assert_eq!(
-            ledger.bucket(&loose).unwrap().current_total,
-            Money::from(25)
-        );
+        assert_eq!(cash(&ledger, &loose), Money::from(25));
         let fidelity_lines = entry
             .changes
             .iter()
@@ -1934,37 +2084,12 @@ mod tests {
             .count();
         assert_eq!(fidelity_lines, 1, "one line per account, not per bucket");
 
-        // The undo takes the whole transfer back out of both, even though a
-        // bucket has since been spent below what the payday put in.
-        spend(&mut ledger, &groceries, Money::from(340)).unwrap();
         deposit(
             &mut ledger,
             &[(&mortgage, -875), (&groceries, -300), (&loose, -25)],
         )
         .unwrap();
-        assert_eq!(
-            ledger.bucket(&groceries).unwrap().current_total,
-            Money::ZERO
-        );
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(29660));
-    }
-
-    #[test]
-    fn a_deposit_to_a_bucket_whose_account_has_gone_moves_nothing() {
-        let mut ledger = Ledger::default();
-        let fidelity = account_with(&mut ledger, "Fidelity Savings", "savings", 1000);
-        let a = bucket_with(&mut ledger, "A", 10);
-        let b = bucket_with(&mut ledger, "B", 10);
-        link(&mut ledger, &[&a], &fidelity);
-        ledger
-            .buckets
-            .iter_mut()
-            .find(|x| x.id == b)
-            .unwrap()
-            .linked_account_id = "d".repeat(32);
-        assert!(deposit(&mut ledger, &[(&a, 5), (&b, 5)]).is_err());
-        assert_eq!(ledger.bucket(&a).unwrap().current_total, Money::from(10));
-        assert_eq!(total_of(&ledger, &fidelity), Money::from(1000));
+        assert_eq!(total_of(&ledger, &fidelity), Money::from(150));
     }
 
     #[test]

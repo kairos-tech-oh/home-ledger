@@ -90,11 +90,12 @@ apart.
 | Command | Does |
 |---|---|
 | `hl account balance <account> <amount>` | Sets a balance |
-| `hl bucket add\|spend <bucket> <amount> [--note "…"]` | Adds to a bucket, or spends from it: a spend also leaves the account the bucket is kept in |
+| `hl bucket add\|spend <bucket> <amount> [--note "…"]` | Adds to a bucket, or spends from it; the account it is kept in follows |
+| `hl bucket spend <bucket> <amount> --cover <bucket>` · `--short everyday\|negative` | A spend larger than the bucket: the rest from another bucket, from everyday money, or below zero. Left out, the bucket's own "when short" decides |
 | `hl bucket link <bucket> --to <account>` · `hl bucket link --unlinked --to <account>` | Says which account a bucket's money is kept in; `--unlinked` does it for every bucket with none |
 | `hl bucket set <bucket> <amount>` · `hl bucket move <bucket> <amount> --to <bucket>` | Sets a bucket's cash; moves between buckets, and between their accounts when they differ |
 | `hl payday <earner> [--undo]` | One paycheck's worth into every bucket that earner funds, and into each bucket's account, as the transfer into savings |
-| `hl statement new --card C --balance N --date D [--bucket-source A] [--spend-source A] [--no-account-moves]` | Starts a statement, taking its sources from the card's last one when not given |
+| `hl statement new --card C --balance N --date D [--spend-source A] [--no-account-moves]` | Starts a statement, taking its spending account from the card's last one when not given; bucket money leaves each bucket's own account |
 | `hl statement import <statement> <file.csv> [--member All] [--bucket B]` | Adds the purchases from a bank export; payments and charges already there are left out |
 | `hl statement import <statement> --from-bank [--member All] [--bucket B]` | Fetches the card's charges from its bank and adds the ones in the statement's dates, each to the bucket its merchant went to last |
 | `hl statement settle <statement> [--cover Overflow\|everyday\|negative\|Groceries=Overflow]…` | Settles, saying where a short bucket's rest comes from |

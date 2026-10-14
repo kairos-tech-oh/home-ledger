@@ -132,8 +132,8 @@
     switch (confirming.action) {
       case "settle":
         return r.adjustAccounts
-          ? `Settle ${r.card}? Each bucket line comes out of its bucket, the money comes out of the chosen accounts, and the card is paid down by ${money(r.balance)}.`
-          : `Settle ${r.card}? Each bucket line comes out of its bucket and the card is paid down by ${money(r.balance)}. Account balances are left alone.`;
+          ? `Settle ${r.card}? Each bucket line comes out of its bucket and that bucket's account, everyday spending comes out of the chosen account, and the card is paid down by ${money(r.balance)}.`
+          : `Settle ${r.card}? Each bucket line comes out of its bucket and that bucket's account, and the card is paid down by ${money(r.balance)}. No other account changes.`;
       case "undo":
         return `Undo settling ${r.card}? Every bucket and account gets back exactly what the settle took, and the statement reopens.`;
       case "delete":

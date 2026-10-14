@@ -28,6 +28,8 @@
   } = $props();
 
   const cards = $derived(accounts.filter((a) => a.kind === "credit" || a.kind === "heloc"));
+  // An account holding buckets holds only them; spending comes from elsewhere.
+  const spendable = $derived(accounts.filter((a) => a.bucketCount === 0));
 
   const was = untrack(() => existing);
   let cardAccountId = $state(was?.cardAccountId ?? "");
@@ -35,7 +37,6 @@
   let statementDate = $state(was?.statementDate ?? "");
   let balance = $state(was?.balance ?? "");
   let adjustAccounts = $state(was?.adjustAccounts ?? true);
-  let bucketSourceId = $state(was?.bucketSourceId ?? "");
   let spendSourceId = $state(was?.spendSourceId ?? "");
   let notes = $state(was?.notes ?? "");
   let lines = $state(
@@ -70,7 +71,6 @@
       statementDate,
       balance: balance.trim() || "0",
       adjustAccounts,
-      bucketSourceId,
       spendSourceId,
       notes: notes.trim(),
       lines: lines.map((l) => ({ ...l, label: l.label.trim(), amount: l.amount.trim() })),
@@ -129,28 +129,22 @@
 
   <label class="field check">
     <input type="checkbox" bind:checked={adjustAccounts} />
-    <span>Take the money out of the accounts too when it is settled</span>
+    <span>Take everyday spending out of an account too when it is settled</span>
   </label>
   {#if adjustAccounts}
-    <label class="field">
-      <span>Bucket money from</span>
-      <select bind:value={bucketSourceId}>
-        <option value="">Choose an account</option>
-        {#each accounts as account (account.id)}
-          <option value={account.id}>{account.name}</option>
-        {/each}
-      </select>
-    </label>
     <label class="field">
       <span>Spending from</span>
       <select bind:value={spendSourceId}>
         <option value="">Choose an account</option>
-        {#each accounts as account (account.id)}
+        {#each spendable as account (account.id)}
           <option value={account.id}>{account.name}</option>
         {/each}
       </select>
     </label>
   {/if}
+  <p class="note">
+    Bucket lines come out of their buckets, and each bucket's account follows it.
+  </p>
   <label class="field">
     <span>Notes</span><input bind:value={notes} placeholder="optional" />
   </label>
