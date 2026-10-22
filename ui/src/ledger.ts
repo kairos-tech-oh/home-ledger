@@ -154,6 +154,9 @@ export interface ReconciliationView {
   notes: string;
   lines: ReconLineView[];
   linesTotal: string;
+  spendSourceName: string;
+  everydayTotal: string;
+  bucketsTotal: string;
   unaccounted: string;
   shortfalls: ShortView[];
 }
