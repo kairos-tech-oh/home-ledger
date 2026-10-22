@@ -147,6 +147,13 @@
     open.reduce((t, r) => t + Number(r.balance), 0).toFixed(2),
   );
 
+  /// The spending account's part of the charges, 0..=100, for the split bar.
+  function spendShare(record: ReconciliationView): number {
+    const everyday = Math.abs(Number(record.everydayTotal));
+    const total = everyday + Math.abs(Number(record.bucketsTotal));
+    return total > 0 ? (everyday / total) * 100 : 0;
+  }
+
   /// Zero unaccounted is what makes a statement ready to settle.
   function ready(record: ReconciliationView): boolean {
     return Math.abs(Number(record.unaccounted)) < 0.005;
@@ -269,6 +276,22 @@
           {#if record.cardAccountName} · {record.cardAccountName}{/if}
           {#if record.settledAt} · settled {when(record.settledAt)}{/if}
         </div>
+        {#if record.lines.length > 0}
+          <div class="split">
+            <span class="split-bar" aria-hidden="true">
+              <span class="split-spend" style:width="{spendShare(record)}%"></span>
+            </span>
+            <span class="split-part">
+              <span class="dot spend"></span>
+              {record.spendSourceName || "Spending account"}
+              <strong>{money(record.everydayTotal)}</strong>
+            </span>
+            <span class="split-part">
+              <span class="dot buckets"></span>
+              Buckets <strong>{money(record.bucketsTotal)}</strong>
+            </span>
+          </div>
+        {/if}
         {#each record.shortfalls as s (s.bucketId)}
           <div class="row-meta warn-text">
             {s.bucketName} holds {money(s.holds)} of the {money(s.needs)} this takes
@@ -359,6 +382,46 @@
     margin: 0 0 0.4rem 1.5rem;
     padding-left: 0.6rem;
     border-left: 1px solid var(--hairline);
+  }
+  /* Where the charges are paid from: the spending account, then the buckets. */
+  .split {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.9rem;
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .split-bar {
+    display: flex;
+    flex: 0 0 7rem;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--positive);
+  }
+  .split-spend {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+  .split-part {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+  }
+  .dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+  }
+  .dot.spend {
+    background: var(--accent);
+  }
+  .dot.buckets {
+    background: var(--positive);
   }
   .short-list {
     margin: 0.2rem 0 0;

@@ -244,6 +244,12 @@ pub struct ReconciliationView {
     pub lines: Vec<ReconLineView>,
     /// What the lines come to, which is what makes a balance reconcile or not.
     pub lines_total: String,
+    /// The account everyday spending is drawn from, by name.
+    pub spend_source_name: String,
+    /// The lines on no bucket, paid from the spending account.
+    pub everyday_total: String,
+    /// The lines on a bucket, paid from what the buckets hold.
+    pub buckets_total: String,
     /// Balance less the lines. Zero means it is ready to settle.
     pub unaccounted: String,
     /// Buckets this statement alone needs more from than they hold.
@@ -696,6 +702,12 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
         .iter()
         .map(|record| {
             let lines_total = ledger_math::recon_lines_total(record);
+            let everyday_total: Money = record
+                .lines
+                .iter()
+                .filter(|l| l.bucket_id.is_empty())
+                .map(|l| l.amount)
+                .sum();
             ReconciliationView {
                 id: record.id.clone(),
                 card: record.card.clone(),
@@ -727,6 +739,9 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
                     })
                     .collect(),
                 lines_total: amount(lines_total),
+                spend_source_name: name_of_account(doc, &record.spend_source_id),
+                everyday_total: amount(everyday_total),
+                buckets_total: amount(lines_total - everyday_total),
                 unaccounted: amount(record.balance - lines_total),
                 shortfalls: if record.status == "settled" {
                     Vec::new()
