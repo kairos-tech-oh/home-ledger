@@ -31,6 +31,7 @@ mod bank;
 mod install_path;
 mod out;
 mod read;
+mod serve;
 mod session;
 mod setup;
 mod write;
@@ -209,6 +210,16 @@ enum Command {
         #[command(subcommand)]
         action: Option<BankAction>,
     },
+    /// Answer hl commands over HTTP on this machine, for `tailscale serve` to
+    /// put on the tailnet: a phone page at /, and POST /api/run for scripts.
+    Serve {
+        #[arg(long, env = "HL_SERVE_PORT", default_value_t = 8787)]
+        port: u16,
+        /// A Tailscale login to answer, such as you@example.com. May repeat,
+        /// or come comma separated from HL_SERVE_ALLOW.
+        #[arg(long, env = "HL_SERVE_ALLOW", value_delimiter = ',', required = true)]
+        allow: Vec<String>,
+    },
     /// For the Windows installer: put a folder on the user's PATH, or take it
     /// off, keeping every other entry exactly as it was.
     #[command(hide = true)]
@@ -378,6 +389,11 @@ fn main() -> ExitCode {
     // The installer's PATH change needs no ledger, and must not open one.
     if let Command::InstallPath { action, dir } = &cli.command {
         return install_path::run(action, dir);
+    }
+
+    // The server opens no ledger itself: each command it runs is its own hl.
+    if let Command::Serve { port, allow } = &cli.command {
+        return serve::run(*port, allow);
     }
 
     // The plugin-history import runs its own runtime, so it starts before ours.
@@ -583,6 +599,7 @@ async fn run(cli: Cli) -> Outcome {
         | Command::Lock
         | Command::Alias { .. }
         | Command::InstallPath { .. }
+        | Command::Serve { .. }
         | Command::ImportHistory { .. } => unreachable!(),
     }
 }

@@ -1,0 +1,22 @@
+# hl serve, as the user named after the @, who has run `hl init`:
+#
+#   sudo systemctl enable --now hl-serve@$USER
+#   sudo tailscale serve --bg 8787
+#
+# Who may use it is set in /etc/default/hl-serve.
+[Unit]
+Description=Home Ledger for the tailnet (hl serve) as %i
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=%i
+EnvironmentFile=/etc/default/hl-serve
+ExecStart=/usr/bin/hl serve
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

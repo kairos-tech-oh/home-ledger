@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<title>Home Ledger</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --panel: #ffffff;
+    --ink: #1d1d1b;
+    --dim: #6b6a65;
+    --line: #e2e0d9;
+    --accent: #3b5bdb;
+    --bad: #c92a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --panel: #1e1e1c;
+      --ink: #edece8;
+      --dim: #9a9993;
+      --line: #2e2e2b;
+      --accent: #7c9ef8;
+      --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.4 -apple-system, system-ui, sans-serif;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+  .quick {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  button {
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 10px 6px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+  }
+  button:active { background: var(--line); }
+  form { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    font: 16px ui-monospace, Menlo, monospace;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+  }
+  .run { background: var(--accent); color: #fff; border-color: var(--accent); padding: 10px 16px; }
+  .opts { display: flex; align-items: center; gap: 6px; margin: 8px 0 12px; color: var(--dim); font-size: 0.85rem; }
+  .status { color: var(--dim); font-size: 0.8rem; margin-bottom: 4px; min-height: 1.2em; }
+  .status.bad { color: var(--bad); }
+  pre {
+    margin: 0;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow-x: auto;
+    font: 12px/1.45 ui-monospace, Menlo, monospace;
+    white-space: pre;
+    min-height: 6rem;
+  }
+  .recent { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .recent button { font: 12px ui-monospace, Menlo, monospace; padding: 6px 8px; color: var(--dim); }
+</style>
+</head>
+<body>
+<h1>Home Ledger</h1>
+
+<div class="quick">
+  <button data-c="summary">Summary</button>
+  <button data-c="accounts">Accounts</button>
+  <button data-c="buckets">Buckets</button>
+  <button data-c="statements">Statements</button>
+  <button data-c="budget">Budget</button>
+  <button data-c="spending">Spending</button>
+  <button data-c="goals">Goals</button>
+  <button data-c="plan --to 6m">Plan</button>
+  <button data-c="history --since 7d">History</button>
+</div>
+
+<form id="f">
+  <input id="c" type="text" placeholder="hl command, e.g. bucket show Groceries"
+         autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+  <button class="run" type="submit">Run</button>
+</form>
+<label class="opts"><input id="dry" type="checkbox"> Preview edits only (--dry-run)</label>
+
+<div id="s" class="status"></div>
+<pre id="o"></pre>
+<div id="r" class="recent"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const RECENT = "hl-recent";
+
+  function recent() {
+    try { return JSON.parse(localStorage.getItem(RECENT)) || []; } catch { return []; }
+  }
+  function remember(cmd) {
+    const list = [cmd, ...recent().filter((c) => c !== cmd)].slice(0, 8);
+    try { localStorage.setItem(RECENT, JSON.stringify(list)); } catch {}
+    showRecent();
+  }
+  function showRecent() {
+    const box = $("r");
+    box.replaceChildren(...recent().map((cmd) => {
+      const b = document.createElement("button");
+      b.textContent = cmd;
+      b.onclick = () => { $("c").value = cmd; };
+      return b;
+    }));
+  }
+
+  async function run(cmd) {
+    cmd = cmd.trim();
+    if (!cmd) return;
+    if ($("dry").checked && !/(^|\s)--dry-run(\s|$)/.test(cmd)) cmd += " --dry-run";
+    $("s").className = "status";
+    $("s").textContent = "hl " + cmd + " …";
+    try {
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "X-Home-Ledger": "1", "Accept": "application/json", "Content-Type": "text/plain" },
+        body: cmd,
+      });
+      const type = res.headers.get("Content-Type") || "";
+      const r = type.includes("json") ? await res.json() : { exit: 1, out: "", err: await res.text() };
+      $("o").textContent = (r.out || "") + (r.err || "") || "(nothing printed)";
+      $("s").textContent = "hl " + cmd + (r.exit === 0 ? "" : " · exit " + r.exit);
+      if (r.exit !== 0) $("s").className = "status bad";
+      if (res.ok) remember(cmd);
+    } catch (e) {
+      $("s").className = "status bad";
+      $("s").textContent = "Could not reach the ledger: " + e;
+    }
+  }
+
+  document.querySelectorAll(".quick button").forEach((b) => {
+    b.onclick = () => run(b.dataset.c);
+  });
+  $("f").onsubmit = (e) => { e.preventDefault(); run($("c").value); };
+  showRecent();
+  run("summary");
+</script>
+</body>
+</html>

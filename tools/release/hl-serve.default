@@ -1,0 +1,6 @@
+# Settings for hl-serve@.service.
+#
+# The Tailscale logins hl serve answers, comma separated. Nobody until set.
+HL_SERVE_ALLOW=
+# The port on this machine that `tailscale serve` forwards to.
+HL_SERVE_PORT=8787

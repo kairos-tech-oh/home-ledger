@@ -10,6 +10,16 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- `home-ledger-cli`: `hl` on its own, without the desktop app, as a .deb and a
+  .tar.gz for Linux on x86-64 and ARM, for a machine with no desktop such as
+  a Raspberry Pi.
+- `hl serve` answers hl commands over HTTP for `tailscale serve` to put on
+  your tailnet: a page for the phone, and `POST /api/run` for scripts and iOS
+  Shortcuts. Only the Tailscale logins it is given are answered, and setting
+  up and secrets stay at the machine's own terminal. The .deb runs it as the
+  `hl-serve@` service.
+
 ## [0.2.11] - 2026-10-22
 
 ### Added
