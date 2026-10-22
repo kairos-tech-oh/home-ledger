@@ -10,6 +10,13 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-10-22
+
+### Added
+- Each statement on the Reconcile screen shows where its charges will be paid
+  from: the everyday spending from the spending account it names, and the
+  rest from the buckets, with a bar for the proportion.
+
 ## [0.2.10] - 2026-10-14
 
 ### Added
