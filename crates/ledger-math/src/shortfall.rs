@@ -20,16 +20,18 @@ pub struct Need {
     pub short: Money,
 }
 
-fn needs<'a>(
-    lines: impl Iterator<Item = &'a ledger_domain::records::ReconLine>,
-) -> Vec<(String, Money)> {
+/// What one statement takes from each bucket: its lines there, a refund
+/// netted against the charges, as the settle draws them. A bucket the
+/// refunds outweigh takes nothing.
+fn needs(record: &Reconciliation) -> Vec<(String, Money)> {
     let mut out: Vec<(String, Money)> = Vec::new();
-    for line in lines.filter(|l| !l.bucket_id.is_empty() && l.amount.inner() > Decimal::ZERO) {
+    for line in record.lines.iter().filter(|l| !l.bucket_id.is_empty()) {
         match out.iter_mut().find(|(b, _)| *b == line.bucket_id) {
             Some(row) => row.1 += line.amount,
             None => out.push((line.bucket_id.clone(), line.amount)),
         }
     }
+    out.retain(|(_, m)| m.inner() > Decimal::ZERO);
     out
 }
 
@@ -50,20 +52,28 @@ fn against(ledger: &Ledger, wanted: Vec<(String, Money)>) -> Vec<Need> {
 
 /// The buckets one statement would come up short on if settled now.
 pub fn short_on(ledger: &Ledger, record: &Reconciliation) -> Vec<Need> {
-    against(ledger, needs(record.lines.iter()))
+    against(ledger, needs(record))
         .into_iter()
         .filter(|n| !n.short.is_zero())
         .collect()
 }
 
-/// What every open statement together takes from each bucket.
+/// What every open statement together takes from each bucket. Each is
+/// netted alone: a refund on one statement does not pay for another's charges.
 pub fn committed(ledger: &Ledger) -> Vec<Need> {
-    let open = ledger
+    let mut total: Vec<(String, Money)> = Vec::new();
+    for (bucket_id, m) in ledger
         .reconciliations
         .iter()
         .filter(|r| r.status != "settled")
-        .flat_map(|r| r.lines.iter());
-    against(ledger, needs(open))
+        .flat_map(needs)
+    {
+        match total.iter_mut().find(|(b, _)| *b == bucket_id) {
+            Some(row) => row.1 += m,
+            None => total.push((bucket_id, m)),
+        }
+    }
+    against(ledger, total)
 }
 
 #[cfg(test)]
@@ -134,6 +144,35 @@ mod tests {
         let short = short_on(&doc, &doc.reconciliations[0]);
         assert_eq!(short.len(), 1);
         assert_eq!(short[0].short, Money::from(40));
+    }
+
+    #[test]
+    fn a_refund_lowers_what_its_statement_takes_from_the_bucket() {
+        let mut doc = ledger();
+        doc.buckets[0].current_total = Money::from(60);
+        // 100 of charges on g, short 40, until a 50 refund on g.
+        doc.reconciliations[0]
+            .lines
+            .push(statement("open", &[("g", -50)]).lines.remove(0));
+        assert!(short_on(&doc, &doc.reconciliations[0]).is_empty());
+        let g = committed(&doc)
+            .into_iter()
+            .find(|n| n.bucket_id == "g".repeat(32))
+            .unwrap();
+        assert_eq!(g.needs, Money::from(120), "50 net here and 70 on the other");
+    }
+
+    #[test]
+    fn a_refund_on_one_statement_does_not_pay_for_another() {
+        let mut doc = ledger();
+        doc.reconciliations[0]
+            .lines
+            .push(statement("open", &[("g", -300)]).lines.remove(0));
+        let g = committed(&doc)
+            .into_iter()
+            .find(|n| n.bucket_id == "g".repeat(32))
+            .unwrap();
+        assert_eq!(g.needs, Money::from(70));
     }
 
     #[test]

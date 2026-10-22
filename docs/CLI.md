@@ -27,6 +27,21 @@ for `hl`.
 The app's in-app updates replace `hl` with the app, so the two never drift
 apart.
 
+### Without the app
+
+For a machine with no desktop, such as a Raspberry Pi, each release also has
+`hl` on its own as `home-ledger-cli`, for Linux on x86-64 (`amd64`) and ARM
+(`arm64`):
+
+- **`home-ledger-cli_X.Y.Z_<arch>.deb`:** `sudo apt install ./home-ledger-cli_….deb`
+  puts `hl` in `/usr/bin` with the `hl-serve@` service (see [From a
+  phone](#from-a-phone)). It replaces the app's own package and the app's
+  replaces it, since both install `/usr/bin/hl`.
+- **`home-ledger-cli_X.Y.Z_<arch>.tar.gz`:** the same files to copy by hand.
+
+Then `hl init` sets the machine up. Nothing updates it by itself: install the
+next release's package over it.
+
 ## Conventions
 
 - **`--json`** prints the answer as JSON in a stable shape, the same
@@ -132,6 +147,38 @@ Omarchy plugin), the install's permanent id, the app version, and a script's
 `--via` label. Two machines left with the same name are still told apart by
 their install id. On a machine with the app, `hl` shares the app's install, so
 "Office PC · desktop" and "Office PC · cli" are visibly the same computer.
+
+## From a phone
+
+`hl serve` answers hl commands over HTTP on the machine itself
+(`127.0.0.1:8787`), for [`tailscale serve`](https://tailscale.com/kb/1312/serve)
+to put on your tailnet over HTTPS. Nothing is reachable from outside the
+tailnet, and only the Tailscale logins given with `--allow` are answered:
+`tailscale serve` names the person asking, and anything else is refused.
+
+- **`/`** is a page for the phone: buttons for the usual reads, a box for any
+  command, and a switch that adds `--dry-run`.
+- **`POST /api/run`** takes a command line as the body (`bucket spend
+  Groceries 42.10`, quoted as in a shell, `hl` optional) and answers with what
+  it printed and an `X-Exit-Code` header, or with `{"exit", "out", "err"}`
+  when asked for `application/json`. The request must carry an
+  `X-Home-Ledger` header, which stops another web page from sending one from
+  your browser. That suits an iOS Shortcut: *Get Contents of URL*, method
+  POST, that header, the command as the body.
+
+Each command runs as its own `hl`, so it behaves exactly as in a terminal,
+and its edits are labelled `phone` in the history unless the command gives
+its own `--via`. Setting up and secrets stay at the machine's own terminal:
+`init`, `name`, `unlock`, `lock`, `alias`, `import`, `apply`, and `bank
+keys`, `connect` and `disconnect` are refused.
+
+With the .deb, after `hl init` as your own user:
+
+```sh
+sudoedit /etc/default/hl-serve          # HL_SERVE_ALLOW=you@example.com
+sudo systemctl enable --now hl-serve@$USER
+sudo tailscale serve --bg 8787          # https://<machine>.<tailnet>.ts.net/
+```
 
 ## Running alongside the app
 

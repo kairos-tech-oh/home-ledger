@@ -219,7 +219,7 @@ pub async fn statement_import(
         .collect();
     if !s.json {
         println!(
-            "{} rows: {} to add, {} already on the statement, {} payments or credits left out",
+            "{} rows: {} to add, {} already on the statement, {} payments or unreadable rows left out",
             preview.rows.len(),
             preview.charges,
             preview.duplicates,

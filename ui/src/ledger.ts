@@ -157,6 +157,7 @@ export interface ReconciliationView {
   spendSourceName: string;
   everydayTotal: string;
   bucketsTotal: string;
+  refundsTotal: string;
   unaccounted: string;
   shortfalls: ShortView[];
 }

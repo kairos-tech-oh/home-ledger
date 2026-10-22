@@ -146,10 +146,46 @@ jobs:
             target/release/bundle/deb/*.deb
             target/release/bundle/rpm/*.rpm
 
+  # hl on its own, for a machine with no desktop such as a Raspberry Pi: it
+  # needs none of Tauri's libraries, so it builds on a bare runner. 22.04 for
+  # the oldest glibc, as for the app's own Linux packages.
+  cli:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: amd64
+          - os: ubuntu-22.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cli
+          save-if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      - run: cargo build -p hl --release --locked
+      - name: Package
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "hl") | .version')
+          tools/release/package-cli.sh target/release/hl "$version" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: home-ledger-cli-${{ matrix.arch }}
+          retention-days: 2
+          if-no-files-found: error
+          path: |
+            dist/*.deb
+            dist/*.tar.gz
+
   # A tagged push publishes the installers so a machine can just download one.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: bundle
+    needs: [bundle, cli]
     runs-on: ubuntu-latest
     permissions:
       contents: write

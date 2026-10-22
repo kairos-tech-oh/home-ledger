@@ -23,6 +23,8 @@ uuid.workspace = true
 clap = { version = "4", features = ["derive", "env", "wrap_help"] }
 rpassword = "7"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# For `hl serve`: plain HTTP on this machine, which `tailscale serve` fronts.
+tiny_http = "0.12"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

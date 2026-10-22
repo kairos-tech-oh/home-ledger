@@ -246,10 +246,13 @@ pub struct ReconciliationView {
     pub lines_total: String,
     /// The account everyday spending is drawn from, by name.
     pub spend_source_name: String,
-    /// The lines on no bucket, paid from the spending account.
+    /// The charges on no bucket, paid from the spending account.
     pub everyday_total: String,
-    /// The lines on a bucket, paid from what the buckets hold.
+    /// The charges on a bucket, paid from what the buckets hold.
     pub buckets_total: String,
+    /// Refunds and credits, negative: they come off the charges above, and
+    /// settling gives each back to its bucket or the spending account.
+    pub refunds_total: String,
     /// Balance less the lines. Zero means it is ready to settle.
     pub unaccounted: String,
     /// Buckets this statement alone needs more from than they hold.
@@ -702,10 +705,13 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
         .iter()
         .map(|record| {
             let lines_total = ledger_math::recon_lines_total(record);
-            let everyday_total: Money = record
-                .lines
-                .iter()
+            let charges = || record.lines.iter().filter(|l| l.amount > Money::ZERO);
+            let everyday_total: Money = charges()
                 .filter(|l| l.bucket_id.is_empty())
+                .map(|l| l.amount)
+                .sum();
+            let buckets_total: Money = charges()
+                .filter(|l| !l.bucket_id.is_empty())
                 .map(|l| l.amount)
                 .sum();
             ReconciliationView {
@@ -741,7 +747,8 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
                 lines_total: amount(lines_total),
                 spend_source_name: name_of_account(doc, &record.spend_source_id),
                 everyday_total: amount(everyday_total),
-                buckets_total: amount(lines_total - everyday_total),
+                buckets_total: amount(buckets_total),
+                refunds_total: amount(lines_total - everyday_total - buckets_total),
                 unaccounted: amount(record.balance - lines_total),
                 shortfalls: if record.status == "settled" {
                     Vec::new()

@@ -10,6 +10,30 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
+### Fixed
+- A refund, return or statement credit on a card export, or from the bank, is
+  now added to the statement as a negative charge, so the charges add up to
+  the balance. Before, it was set aside with the payments and could not be
+  ticked, and a credit typed on a statement was dropped when saved. A payment
+  to the card is still left out: it pays the statement before. Settling gives
+  a refund back to its bucket, or to the spending account, and the warning
+  that a bucket is short counts the refund against its charges.
+
+### Added
+- `home-ledger-cli`: `hl` on its own, without the desktop app, as a .deb and a
+  .tar.gz for Linux on x86-64 and ARM, for a machine with no desktop such as
+  a Raspberry Pi.
+- `hl serve` answers hl commands over HTTP for `tailscale serve` to put on
+  your tailnet: a page for the phone, and `POST /api/run` for scripts and iOS
+  Shortcuts. Only the Tailscale logins it is given are answered, and setting
+  up and secrets stay at the machine's own terminal. The .deb runs it as the
+  `hl-serve@` service.
+- The History page shows a page at a time, 10, 25, 50 or 100 entries, kept
+  on this machine. Clicking an entry opens it to show everything the one-line
+  row cuts off: when, who and version, and each change on its own line.
+
 ## [0.2.11] - 2026-10-22
 
 ### Added

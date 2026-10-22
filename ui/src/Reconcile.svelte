@@ -290,6 +290,13 @@
               <span class="dot buckets"></span>
               Buckets <strong>{money(record.bucketsTotal)}</strong>
             </span>
+            {#if Number(record.refundsTotal) !== 0}
+              <span class="split-part">
+                <span class="dot refunds"></span>
+                Refunds <strong class="pos">{money(record.refundsTotal)}</strong>
+              </span>
+              <span class="split-part muted">= {money(record.linesTotal)}</span>
+            {/if}
           </div>
         {/if}
         {#each record.shortfalls as s (s.bucketId)}
@@ -422,6 +429,9 @@
   }
   .dot.buckets {
     background: var(--positive);
+  }
+  .dot.refunds {
+    background: var(--warn);
   }
   .short-list {
     margin: 0.2rem 0 0;

@@ -341,7 +341,8 @@ pub fn average(basis: Option<Money>, quantity: Money) -> Money {
 
 pub(crate) fn recon_line(mut record: ReconLine) -> Option<ReconLine> {
     record.amount = cents(record.amount);
-    if record.amount <= Money::ZERO {
+    // Negative is a refund or credit, which comes off the statement.
+    if record.amount.is_zero() {
         return None;
     }
     record.id = keep_or_new(&record.id);
@@ -380,7 +381,8 @@ fn applied_moves(rows: Vec<AppliedMove>, credit: bool) -> Vec<AppliedMove> {
             } else {
                 None
             };
-            (!row.id.is_empty() && row.amount > Money::ZERO).then_some(row)
+            // Negative when a settle paid a refund back in.
+            (!row.id.is_empty() && !row.amount.is_zero()).then_some(row)
         })
         .collect()
 }
