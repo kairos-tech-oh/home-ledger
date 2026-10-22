@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
 ### Fixed
 - A refund, return or statement credit on a card export, or from the bank, is
   now added to the statement as a negative charge, so the charges add up to
