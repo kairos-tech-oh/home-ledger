@@ -694,9 +694,21 @@ pub fn bank_rows(
             // Money out of a card is a purchase, unless Plaid says it is a
             // payment or a transfer in: Plaid's Sandbox, and some banks,
             // sign a card payment as money out.
-            let payment = PAYMENT_CATEGORIES.iter().any(|c| t.category.starts_with(c));
+            // Money in that is not a payment is a refund or credit, and comes
+            // off the statement: it is kept negative, as a line taking money back.
+            let payment = PAYMENT_CATEGORIES.iter().any(|c| t.category.starts_with(c))
+                || (t.amount < Money::ZERO
+                    && ledger_writer::bank_csv::is_payment(
+                        "",
+                        &format!("{} {}", t.name, t.merchant),
+                    ));
             let charge = t.amount > Money::ZERO && !payment;
-            let amount = Money::new(t.amount.inner().abs());
+            let refund = t.amount < Money::ZERO && !payment;
+            let amount = if refund {
+                t.amount
+            } else {
+                Money::new(t.amount.inner().abs())
+            };
             let made = if t.authorized.is_empty() {
                 &t.date
             } else {
@@ -723,15 +735,15 @@ pub fn bank_rows(
             } else {
                 (t.merchant.clone(), t.name.clone())
             };
-            let problem = if charge {
+            let problem = if charge || refund {
                 String::new()
             } else if payment {
                 "a payment to the card, not a purchase".to_string()
             } else {
-                "a payment, refund or credit, not a purchase".to_string()
+                "nothing to add: the amount is zero".to_string()
             };
             Row {
-                suggested: charge && !duplicate && !earlier && !after_statement,
+                suggested: (charge || refund) && !duplicate && !earlier && !after_statement,
                 value,
                 duplicate,
                 after_statement,

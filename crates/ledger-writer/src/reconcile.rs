@@ -344,8 +344,9 @@ impl Writer {
         // than its lines take is covered as asked, or by its own default.
         let mut bucket_moves: Vec<(usize, Money)> = Vec::new();
         let mut may_go_negative: Vec<usize> = Vec::new();
+        // Negative when a bucket's refunds outweigh its charges: it gets that back.
         fn draw(moves: &mut Vec<(usize, Money)>, index: usize, amount: Money) {
-            if amount <= Money::ZERO {
+            if amount.is_zero() {
                 return;
             }
             match moves.iter_mut().find(|(i, _)| *i == index) {
@@ -431,8 +432,9 @@ impl Writer {
         }
         // Bucket money leaves each bucket's own account by itself: those
         // accounts hold what their buckets hold. Only everyday spending, and
-        // a shortfall charged to it, is taken from an account here.
-        if rec.adjust_accounts && spend > Money::ZERO {
+        // a shortfall charged to it, is taken from an account here; refunds
+        // outweighing it are paid back into that account.
+        if rec.adjust_accounts && !spend.is_zero() {
             let source = &rec.spend_source_id;
             let found = (!source.is_empty())
                 .then(|| ledger.accounts.iter().position(|a| &a.id == source))
@@ -834,6 +836,45 @@ mod tests {
             after_delete,
             "a refused undo moved something"
         );
+    }
+
+    #[test]
+    fn a_refund_goes_back_where_it_came_from_and_undo_takes_it_again() {
+        let mut s = setup();
+        // 200 of everyday spending, and a 40 return on Bills, which has no
+        // charges of its own here: the card owes 160.
+        let lines = json!([{ "label": "Costco", "amount": 200 },
+                           { "label": "Return", "amount": -40, "bucketId": s.bills }]);
+        let record = recon(&s, 160.0, lines);
+        set(&mut s.ledger, "", record).unwrap();
+        let rid = s.ledger.reconciliations[0].id.clone();
+        let before = money_state(&s.ledger);
+
+        settle(&mut s.ledger, &rid).unwrap();
+        assert_eq!(balance(&s.ledger, "Bills"), Money::from(80));
+        assert_eq!(
+            balance(&s.ledger, "Savings"),
+            Money::from(580),
+            "it follows Bills up"
+        );
+        assert_eq!(balance(&s.ledger, "Checking"), Money::ZERO);
+        assert_eq!(balance(&s.ledger, "Sapphire"), Money::ZERO);
+
+        undo(&mut s.ledger, &rid).unwrap();
+        assert_eq!(money_state(&s.ledger), before);
+
+        // Refunds outweighing the everyday spending go back into its account.
+        let lines = json!([{ "label": "Car service", "amount": 100, "bucketId": s.car },
+                           { "label": "Return", "amount": -30 }]);
+        let record = recon(&s, 70.0, lines);
+        set(&mut s.ledger, &rid, record).unwrap();
+        // Saving set the card to the new balance.
+        let before = money_state(&s.ledger);
+        settle(&mut s.ledger, &rid).unwrap();
+        assert_eq!(balance(&s.ledger, "Car"), Money::from(400));
+        assert_eq!(balance(&s.ledger, "Checking"), m("230"));
+        undo(&mut s.ledger, &rid).unwrap();
+        assert_eq!(money_state(&s.ledger), before);
     }
 
     #[test]

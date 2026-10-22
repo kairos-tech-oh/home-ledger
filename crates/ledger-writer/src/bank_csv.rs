@@ -52,7 +52,8 @@ pub struct Transaction {
     pub description: String,
     pub category: String,
     pub kind: String,
-    /// Positive for a purchase.
+    /// Positive for a purchase, negative for a refund or credit, which comes
+    /// off the statement. A payment to the card is kept positive and set aside.
     pub amount: Money,
     /// A purchase, as opposed to a payment, refund or credit.
     pub charge: bool,
@@ -234,6 +235,22 @@ fn is_purchase_word(kind: &str) -> Option<bool> {
     }
 }
 
+/// Whether money in is a payment to the card, which pays off an earlier
+/// statement, rather than a refund or credit, which comes off this one. A
+/// bank's own word decides; without one, a payment says so in its description
+/// ("Payment Thank You", "AUTOPAY PAYMENT", "MOBILE PYMT").
+pub fn is_payment(kind: &str, description: &str) -> bool {
+    match kind.trim().to_lowercase().as_str() {
+        "payment" => return true,
+        "return" | "refund" => return false,
+        _ => {}
+    }
+    let d = description.to_lowercase();
+    ["payment", "pymt", "autopay", "thank you"]
+        .iter()
+        .any(|w| d.contains(w))
+}
+
 /// Read a file. `wanted` replaces the guessed columns and sign; the header row
 /// is found either way.
 pub fn read(text: &str, wanted: Option<Mapping>) -> Result<Read, String> {
@@ -326,38 +343,39 @@ pub fn read(text: &str, wanted: Option<Mapping>) -> Result<Read, String> {
             let kind = field(row, mapping.kind);
             let raw_date = field(row, mapping.date);
             let day = date(&raw_date, mapping.day_first);
-            let (value, charge) = match (mapping.amount, mapping.debit) {
-                (Some(_), _) => match amount(&field(row, mapping.amount)) {
-                    Some(v) => {
-                        let spent = if mapping.charges_negative { -v } else { v };
-                        (Some(spent.abs()), spent > Decimal::ZERO)
-                    }
-                    None => (None, false),
-                },
+            // What it adds to the card: positive spent, negative paid back.
+            let spent = match (mapping.amount, mapping.debit) {
+                (Some(_), _) => amount(&field(row, mapping.amount))
+                    .map(|v| if mapping.charges_negative { -v } else { v }),
                 (None, Some(_)) => {
                     let out = amount(&field(row, mapping.debit)).map(|v| v.abs());
                     let back = amount(&field(row, mapping.credit)).map(|v| v.abs());
                     match (out, back) {
-                        (Some(v), _) if v > Decimal::ZERO => (Some(v), true),
-                        (_, Some(v)) => (Some(v), false),
-                        _ => (None, false),
+                        (Some(v), _) if v > Decimal::ZERO => Some(v),
+                        (_, Some(v)) => Some(-v),
+                        (out, None) => out,
                     }
                 }
-                _ => (None, false),
+                _ => None,
             };
-            let problem = if value.is_none() {
-                "no amount could be read".to_string()
-            } else if !charge {
-                "a payment, refund or credit, not a purchase".to_string()
-            } else if day.is_none() {
-                "no date could be read".to_string()
-            } else {
-                String::new()
+            let description = ledger_domain::plain(&field(row, mapping.description), 120);
+            let charge = spent.is_some_and(|v| v > Decimal::ZERO);
+            let payment =
+                spent.is_some_and(|v| v < Decimal::ZERO) && is_payment(&kind, &description);
+            // A refund or credit is kept signed, so it comes off the statement;
+            // a payment is shown as the money it is, and set aside.
+            let value = spent.map(|v| if payment { v.abs() } else { v });
+            let problem = match spent {
+                None => "no amount could be read".to_string(),
+                Some(v) if v.is_zero() => "nothing to add: the amount is zero".to_string(),
+                _ if payment => "a payment to the card, not a purchase".to_string(),
+                _ if day.is_none() => "no date could be read".to_string(),
+                _ => String::new(),
             };
             Transaction {
                 line: first_line + i,
                 date: day.map(Day::iso).unwrap_or_default(),
-                description: ledger_domain::plain(&field(row, mapping.description), 120),
+                description,
                 category: ledger_domain::plain(&field(row, mapping.category), 80),
                 kind,
                 amount: Money::new(value.unwrap_or_default()),
@@ -435,7 +453,7 @@ mod tests {
 09/19/2026,09/20/2026,PETCO 2823,Shopping,Return,25.36,\r\n";
 
     #[test]
-    fn a_chase_export_reads_as_charges_with_payments_and_returns_set_aside() {
+    fn a_chase_export_reads_as_charges_and_a_return_with_payments_set_aside() {
         let r = read(CHASE, None).unwrap();
         assert!(r.had_headers);
         assert_eq!(r.mapping.date, Some(0), "transaction date, not post date");
@@ -443,16 +461,58 @@ mod tests {
         assert_eq!(r.mapping.amount, Some(5));
         assert_eq!(r.mapping.kind, Some(4));
         assert!(r.mapping.charges_negative);
-        let charges: Vec<_> = r.rows.iter().filter(|t| t.problem.is_empty()).collect();
-        assert_eq!(charges.len(), 4);
-        assert_eq!(charges[0].date, "2026-09-28");
-        assert_eq!(charges[0].description, "GOOGLE *YouTube TV");
-        assert_eq!(charges[0].amount, Money::new(dec!(5.39)));
-        assert_eq!(charges[1].category, "Shopping");
+        let added: Vec<_> = r.rows.iter().filter(|t| t.problem.is_empty()).collect();
+        assert_eq!(added.len(), 5, "four purchases and the return");
+        assert_eq!(added[0].date, "2026-09-28");
+        assert_eq!(added[0].description, "GOOGLE *YouTube TV");
+        assert_eq!(added[0].amount, Money::new(dec!(5.39)));
+        assert_eq!(added[1].category, "Shopping");
         let payment = &r.rows[4];
         assert!(!payment.charge);
         assert_eq!(payment.line, 6);
-        assert!(!r.rows[5].charge, "a return is not a purchase");
+        assert_eq!(payment.amount, Money::from(1500));
+        assert!(
+            !payment.problem.is_empty(),
+            "a payment pays an earlier statement"
+        );
+        let refund = &r.rows[5];
+        assert!(!refund.charge, "a return is not a purchase");
+        assert!(refund.problem.is_empty(), "but it comes off this statement");
+        assert_eq!(refund.amount, Money::new(dec!(-25.36)));
+    }
+
+    #[test]
+    fn a_statement_with_a_return_adds_up_to_its_balance() {
+        // The Chase export behind the bug: purchases of 1,030.53, a 135.80
+        // return, and two payments of the last statement, on a balance of 894.73.
+        let text = "Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n\
+10/21/2026,10/21/2026,APPLE.COM/BILL,Shopping,Sale,-8.62,\n\
+10/15/2026,10/16/2026,ACUTE CARE SURGEONS,Health & Wellness,Sale,-247.50,\n\
+10/07/2026,10/09/2026,SP CLOVE BRAND INC.,Shopping,Return,135.80,\n\
+10/05/2026,10/05/2026,Payment Thank You - Web,,Payment,448.04,\n\
+10/05/2026,10/05/2026,Payment Thank You - Web,,Payment,80.52,\n\
+10/04/2026,10/05/2026,COSTCO WHSE #0632,Shopping,Sale,-774.41,\n";
+        let r = read(text, None).unwrap();
+        let added: Money = r
+            .rows
+            .iter()
+            .filter(|t| t.problem.is_empty())
+            .map(|t| t.amount)
+            .sum();
+        assert_eq!(added, Money::new(dec!(894.73)));
+        assert_eq!(r.rows.iter().filter(|t| !t.problem.is_empty()).count(), 2);
+    }
+
+    #[test]
+    fn without_a_type_column_a_refund_is_told_from_a_payment_by_its_words() {
+        let text = "Date,Description,Amount\n09/03/2026,WHOLE FOODS,54.10\n\
+09/04/2026,WHOLE FOODS REFUND,-12.00\n09/05/2026,AUTOPAY PAYMENT - THANK YOU,-500.00\n\
+09/06/2026,SHELL OIL,41.00\n09/07/2026,TARGET,18.30\n";
+        let r = read(text, None).unwrap();
+        assert_eq!(r.rows[1].amount, Money::new(dec!(-12.00)));
+        assert!(r.rows[1].problem.is_empty());
+        assert_eq!(r.rows[2].amount, Money::from(500));
+        assert!(!r.rows[2].problem.is_empty());
     }
 
     #[test]
@@ -483,6 +543,7 @@ mod tests {
         assert!(r.rows[0].charge && r.rows[0].problem.is_empty());
         assert_eq!(r.rows[0].amount, Money::new(dec!(63.21)));
         assert!(!r.rows[1].charge);
+        assert!(!r.rows[1].problem.is_empty(), "MOBILE PYMT is a payment");
     }
 
     #[test]

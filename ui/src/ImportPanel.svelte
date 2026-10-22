@@ -281,7 +281,8 @@
                 {#if r.bankText}<div class="muted small">{r.bankText}</div>{/if}
               </td>
               <td class="muted">{r.category}</td>
-              <td class="num" class:pos={!r.charge}>{r.charge ? "" : "+"}{money(r.value)}</td>
+              <!-- A refund is negative and comes off the statement; a payment, set aside, is shown as money in. -->
+              <td class="num" class:pos={!r.charge}>{r.problem && !r.charge ? "+" : ""}{money(r.value)}</td>
               <td>
                 <select bind:value={rowBucket[i]} disabled={!!r.problem} aria-label="Paid from">
                   <option value={FOLLOW}>As above</option>
