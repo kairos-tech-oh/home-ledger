@@ -19,6 +19,9 @@ described here but have no tags of their own.
   Shortcuts. Only the Tailscale logins it is given are answered, and setting
   up and secrets stay at the machine's own terminal. The .deb runs it as the
   `hl-serve@` service.
+- The History page shows a page at a time, 10, 25, 50 or 100 entries, kept
+  on this machine. Clicking an entry opens it to show everything the one-line
+  row cuts off: when, who and version, and each change on its own line.
 
 ## [0.2.11] - 2026-10-22
 
