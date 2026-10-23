@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-22
+
 ### Added
 - Spending → By person: pick anyone to see what they spent in the chosen
   dates, their share of the whole, everyday against bucket-funded, open
