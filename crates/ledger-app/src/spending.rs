@@ -5,7 +5,7 @@ use crate::commands::{Answer, CommandError};
 use crate::state::AppState;
 use ledger_domain::{Ledger, Money};
 use ledger_math::calendar::Day;
-use ledger_math::spending::{self, Charge, Group, Report, Status};
+use ledger_math::spending::{self, Charge, Group, Person, Report, Status};
 use rust_decimal::prelude::ToPrimitive;
 use serde::Serialize;
 
@@ -33,6 +33,27 @@ pub struct ChargeView {
     pub status: &'static str,
     pub amount: String,
     pub reconciliation_id: String,
+    pub line_id: String,
+    /// Who spent it as the charge says, empty for no one; `member` is how it
+    /// is shown.
+    pub spent_by: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonView {
+    pub key: String,
+    pub name: String,
+    pub total: String,
+    pub count: usize,
+    pub open: String,
+    pub settled: String,
+    pub everyday: String,
+    pub from_buckets: String,
+    pub buckets: Vec<GroupView>,
+    pub cards: Vec<GroupView>,
+    pub items: Vec<GroupView>,
+    pub months: Vec<GroupView>,
 }
 
 #[derive(Serialize)]
@@ -57,6 +78,8 @@ pub struct SpendingView {
     pub missing_settlement_history: usize,
     pub undated_withdrawals: usize,
     pub people: Vec<GroupView>,
+    /// One per row of `people`, in its order.
+    pub per_person: Vec<PersonView>,
     pub items: Vec<GroupView>,
     pub months: Vec<GroupView>,
     pub cards: Vec<GroupView>,
@@ -130,6 +153,25 @@ fn charge(c: Charge) -> ChargeView {
         status: if c.settled { "settled" } else { "open" },
         amount: c.amount.to_string(),
         reconciliation_id: c.reconciliation_id,
+        line_id: c.line_id,
+        spent_by: c.spent_by,
+    }
+}
+
+fn person(p: Person) -> PersonView {
+    PersonView {
+        key: p.key,
+        name: p.name,
+        total: p.total.to_string(),
+        count: p.count,
+        open: p.open.to_string(),
+        settled: p.settled.to_string(),
+        everyday: p.everyday.to_string(),
+        from_buckets: p.from_buckets.to_string(),
+        buckets: groups(p.buckets, false),
+        cards: groups(p.cards, false),
+        items: groups(p.items, true),
+        months: groups(p.months, false),
     }
 }
 
@@ -159,6 +201,7 @@ pub fn spending_view(
         missing_settlement_history: r.missing_settlement_history,
         undated_withdrawals: r.undated_withdrawals,
         people: groups(r.people, false),
+        per_person: r.per_person.into_iter().map(person).collect(),
         items: groups(r.items, true),
         months: groups(r.months, false),
         cards: groups(r.cards, false),

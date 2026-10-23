@@ -192,7 +192,7 @@ it exits, so a script never quits mid-upload.
 
 ```sh
 # Each payday, from a scheduled task
-hl payday Chris --via payroll
+hl payday Alex --via payroll
 
 # Catch a statement up from the bank's export, then settle it
 hl statement import "Chase Sapphire" ~/Downloads/Chase.csv --bucket Groceries

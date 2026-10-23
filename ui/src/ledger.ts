@@ -270,6 +270,24 @@ export interface ChargeView {
   status: "open" | "settled";
   amount: string;
   reconciliationId: string;
+  lineId: string;
+  /** Who spent it as the charge says, "" for no one; `member` is how it is shown. */
+  spentBy: string;
+}
+
+export interface PersonView {
+  key: string;
+  name: string;
+  total: string;
+  count: number;
+  open: string;
+  settled: string;
+  everyday: string;
+  fromBuckets: string;
+  buckets: GroupView[];
+  cards: GroupView[];
+  items: GroupView[];
+  months: GroupView[];
 }
 
 export interface SpendingView {
@@ -291,6 +309,8 @@ export interface SpendingView {
   missingSettlementHistory: number;
   undatedWithdrawals: number;
   people: GroupView[];
+  /** One per row of `people`, in its order. */
+  perPerson: PersonView[];
   items: GroupView[];
   months: GroupView[];
   cards: GroupView[];
@@ -599,6 +619,7 @@ export type Op =
   | { op: "retirement-accrue"; id: string }
   | { op: "reconcile-set"; id: string; record: Record<string, unknown> }
   | { op: "reconcile-delete"; id: string }
+  | { op: "reconcile-member"; id: string; lineId: string; member: string }
   | { op: "reconcile-settle"; id: string; cover?: Cover[] }
   | { op: "reconcile-undo"; id: string }
   | { op: "reconcile-import"; id: string; lines: Record<string, unknown>[] }

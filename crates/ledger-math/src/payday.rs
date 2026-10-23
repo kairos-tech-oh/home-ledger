@@ -82,16 +82,16 @@ mod tests {
 
     fn ledger() -> Ledger {
         let mut doc = Ledger::default();
-        // Chris earns two thirds and is paid every two weeks; Yuki a third,
+        // Alex earns two thirds and is paid every two weeks; Jordan a third,
         // twice a month.
         doc.income.push(IncomeStream {
-            owner: "Chris".into(),
+            owner: "Alex".into(),
             monthly_total: Money::from(6_000),
             frequency: "biweekly".into(),
             ..Default::default()
         });
         doc.income.push(IncomeStream {
-            owner: "Yuki".into(),
+            owner: "Jordan".into(),
             monthly_total: Money::from(3_000),
             frequency: "semimonthly".into(),
             ..Default::default()
@@ -122,31 +122,31 @@ mod tests {
     fn each_earner_pays_their_share_of_each_bucket_per_paycheck() {
         let days = paydays(&ledger());
         let owners: Vec<_> = days.iter().map(|d| d.owner.as_str()).collect();
-        assert_eq!(owners, ["Chris", "Yuki"], "largest earner first");
+        assert_eq!(owners, ["Alex", "Jordan"], "largest earner first");
 
-        // Chris: 600 of groceries and 200 of travel a month, over 26/12
+        // Alex: 600 of groceries and 200 of travel a month, over 26/12
         // paychecks a month.
-        let chris = &days[0];
+        let alex = &days[0];
         assert_eq!(
-            chris.contributions.len(),
+            alex.contributions.len(),
             2,
             "an unfunded bucket gets nothing"
         );
         assert_eq!(
-            chris.contributions[0].amount,
+            alex.contributions[0].amount,
             Money::new(Decimal::new(27692, 2))
         );
         assert_eq!(
-            chris.contributions[1].amount,
+            alex.contributions[1].amount,
             Money::new(Decimal::new(9231, 2))
         );
-        assert_eq!(chris.total, Money::new(Decimal::new(36923, 2)));
+        assert_eq!(alex.total, Money::new(Decimal::new(36923, 2)));
 
-        // Yuki: 300 and 100 a month over two paychecks.
-        let yuki = &days[1];
-        assert_eq!(yuki.contributions[0].amount, Money::from(150));
-        assert_eq!(yuki.contributions[1].amount, Money::from(50));
-        assert_eq!(yuki.total, Money::from(200));
+        // Jordan: 300 and 100 a month over two paychecks.
+        let jordan = &days[1];
+        assert_eq!(jordan.contributions[0].amount, Money::from(150));
+        assert_eq!(jordan.contributions[1].amount, Money::from(50));
+        assert_eq!(jordan.total, Money::from(200));
     }
 
     #[test]

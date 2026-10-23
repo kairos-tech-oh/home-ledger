@@ -65,7 +65,7 @@ same rules and into the same history, signed `cli`:
 
 ```sh
 hl summary
-hl payday Chris
+hl payday Alex
 hl statement import "Chase Sapphire" Chase.csv --bucket Groceries
 hl --json buckets | jq '.[] | select(.committedShort != null)'
 ```

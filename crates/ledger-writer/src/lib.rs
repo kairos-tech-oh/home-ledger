@@ -201,6 +201,14 @@ pub enum Op {
         id: String,
         lines: Vec<Value>,
     },
+    /// Say who made one charge. The one edit a settled statement takes: who
+    /// spent it moves no money, so the settle and its undo are unchanged.
+    ReconcileMember {
+        id: String,
+        line_id: String,
+        #[serde(default)]
+        member: String,
+    },
     /// Pay the statement: draw from buckets and accounts, pay down the card.
     ReconcileSettle {
         id: String,
@@ -323,6 +331,11 @@ impl Writer {
             Op::ReconcileSet { id, record } => self.reconcile_set(ledger, id, record)?,
             Op::ReconcileDelete { id } => self.reconcile_delete(ledger, id)?,
             Op::ReconcileImport { id, lines } => self.reconcile_import(ledger, id, lines)?,
+            Op::ReconcileMember {
+                id,
+                line_id,
+                member,
+            } => self.reconcile_member(ledger, id, line_id, member)?,
             Op::ReconcileSettle { id, cover } => self.settle(ledger, id, cover)?,
             Op::ReconcileUndo { id } => self.undo(ledger, id)?,
             Op::TemplateActivate { id, keep_current } => {
@@ -2048,7 +2061,7 @@ mod tests {
                         delta: Money::from(*delta),
                     })
                     .collect(),
-                label: "Chris's payday".into(),
+                label: "Alex's payday".into(),
             },
         )
     }
