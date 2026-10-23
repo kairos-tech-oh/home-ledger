@@ -315,11 +315,11 @@ mod tests {
 
     #[test]
     fn family_names_are_one_of_each_in_the_order_given() {
-        // check-spending.py: ["Chris", "Pat", "Chris", "", 1] keeps Chris and Pat.
-        let names: Vec<String> = ["Chris", " Pat ", "chris", "", "  "]
+        // check-spending.py: ["Alex", "Pat", "Alex", "", 1] keeps Alex and Pat.
+        let names: Vec<String> = ["Alex", " Pat ", "alex", "", "  "]
             .map(String::from)
             .to_vec();
-        assert_eq!(clean_family_members(&names), ["Chris", "Pat"]);
+        assert_eq!(clean_family_members(&names), ["Alex", "Pat"]);
         let many: Vec<String> = (0..80).map(|i| format!("Name {i}")).collect();
         assert_eq!(clean_family_members(&many).len(), FAMILY_MEMBERS_MAX);
     }

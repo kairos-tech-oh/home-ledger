@@ -87,7 +87,7 @@ fn text(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Case-insensitive first, so "chris" sits beside "Chris" rather than after
+/// Case-insensitive first, so "alex" sits beside "Alex" rather than after
 /// every capital, the way `localeCompare` orders them; then exactly, so the
 /// order never depends on which came first.
 fn by_name(a: &str, b: &str) -> Ordering {
@@ -176,6 +176,39 @@ pub struct Charge {
     pub settled: bool,
     pub amount: Money,
     pub reconciliation_id: String,
+    /// The line on that statement, so who spent it can be changed.
+    pub line_id: String,
+    /// Who spent it as the line says it; empty when no one is named.
+    pub spent_by: String,
+}
+
+/// One person's share of the window, for the per-person view. Keyed like
+/// [`Report::people`], so a row there opens this.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Person {
+    pub key: String,
+    pub name: String,
+    pub total: Money,
+    pub count: usize,
+    pub open: Money,
+    pub settled: Money,
+    pub everyday: Money,
+    pub from_buckets: Money,
+    pub buckets: Vec<Group>,
+    pub cards: Vec<Group>,
+    /// Most often first, as [`Report::items`].
+    pub items: Vec<Group>,
+    /// Oldest first, undated last.
+    pub months: Vec<Group>,
+}
+
+#[derive(Default)]
+struct PersonGroups {
+    person: Person,
+    buckets: Grouper,
+    cards: Grouper,
+    items: Grouper,
+    months: Grouper,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -204,6 +237,8 @@ pub struct Report {
     /// Settled with no settlement date; their debits show only in all time.
     pub undated_withdrawals: usize,
     pub people: Vec<Group>,
+    /// In the same order as `people`.
+    pub per_person: Vec<Person>,
     /// Most often first: frequency counts lines, not units bought.
     pub items: Vec<Group>,
     pub bucket_spending: Vec<Group>,
@@ -213,6 +248,25 @@ pub struct Report {
     pub months: Vec<Group>,
     /// Newest first, undated last; the larger first within a day.
     pub transactions: Vec<Charge>,
+}
+
+/// Most often first, then the larger, then by name.
+fn by_frequency(items: Grouper) -> Vec<Group> {
+    let mut items = items.by_amount();
+    items.sort_by(|a, b| {
+        b.count
+            .cmp(&a.count)
+            .then_with(|| b.amount.cmp(&a.amount))
+            .then_with(|| by_name(&a.name, &b.name))
+    });
+    items
+}
+
+/// Oldest first; "undated" sorts after every yyyy-mm.
+fn by_month(months: Grouper) -> Vec<Group> {
+    let mut months = months.rows;
+    months.sort_by(|a, b| a.key.cmp(&b.key));
+    months
 }
 
 /// Everything the Spending screen shows. `offset_minutes` is how far the
@@ -239,6 +293,7 @@ pub fn analyse(ledger: &Ledger, window: Window, status: Status, offset_minutes: 
     let mut withdrawals = Grouper::default();
     let mut cards = Grouper::default();
     let mut months = Grouper::default();
+    let mut per_person: HashMap<String, PersonGroups> = HashMap::new();
 
     for rec in &ledger.reconciliations {
         let settled = rec.status == "settled";
@@ -304,6 +359,31 @@ pub fn analyse(ledger: &Ledger, window: Window, status: Status, offset_minutes: 
                 &member
             };
             people.add(member.to_lowercase(), who, amount);
+            let mine = per_person
+                .entry(member.to_lowercase())
+                .or_insert_with(|| PersonGroups {
+                    person: Person {
+                        key: member.to_lowercase(),
+                        name: who.to_string(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            mine.person.total += amount;
+            mine.person.count += 1;
+            if settled {
+                mine.person.settled += amount;
+            } else {
+                mine.person.open += amount;
+            }
+            if line.bucket_id.is_empty() {
+                mine.person.everyday += amount;
+                mine.buckets.add(String::new(), &bucket, amount);
+            } else {
+                mine.person.from_buckets += amount;
+                mine.buckets.add(line.bucket_id.clone(), &bucket, amount);
+            }
+            mine.items.add(label.to_lowercase(), &label, amount);
             items.add(label.to_lowercase(), &label, amount);
             let card_key = if rec.card_account_id.is_empty() {
                 text(&rec.card).to_lowercase()
@@ -315,13 +395,18 @@ pub fn analyse(ledger: &Ledger, window: Window, status: Status, offset_minutes: 
             } else {
                 &rec.card
             };
+            mine.cards.add(card_key.clone(), card_name, amount);
             cards.add(card_key, card_name, amount);
             match date {
                 Some(day) => {
                     let month = day.iso()[..7].to_string();
+                    mine.months.add(month.clone(), &month, amount);
                     months.add(month.clone(), &month, amount);
                 }
-                None => months.add("undated".into(), "Undated", amount),
+                None => {
+                    mine.months.add("undated".into(), "Undated", amount);
+                    months.add("undated".into(), "Undated", amount);
+                }
             }
             report.transactions.push(Charge {
                 date,
@@ -333,6 +418,8 @@ pub fn analyse(ledger: &Ledger, window: Window, status: Status, offset_minutes: 
                 settled,
                 amount,
                 reconciliation_id: rec.id.clone(),
+                line_id: line.id.clone(),
+                spent_by: member.clone(),
             });
         }
 
@@ -372,20 +459,23 @@ pub fn analyse(ledger: &Ledger, window: Window, status: Status, offset_minutes: 
     }
 
     report.people = people.by_amount();
+    report.per_person = report
+        .people
+        .iter()
+        .filter_map(|g| per_person.remove(&g.key))
+        .map(|g| Person {
+            buckets: g.buckets.by_amount(),
+            cards: g.cards.by_amount(),
+            items: by_frequency(g.items),
+            months: by_month(g.months),
+            ..g.person
+        })
+        .collect();
     report.bucket_spending = bucket_spending.by_amount();
     report.withdrawals = withdrawals.by_amount();
     report.cards = cards.by_amount();
-    let mut items = items.by_amount();
-    items.sort_by(|a, b| {
-        b.count
-            .cmp(&a.count)
-            .then_with(|| b.amount.cmp(&a.amount))
-            .then_with(|| by_name(&a.name, &b.name))
-    });
-    report.items = items;
-    let mut months = months.rows;
-    months.sort_by(|a, b| a.key.cmp(&b.key));
-    report.months = months;
+    report.items = by_frequency(items);
+    report.months = by_month(months);
     // Newest first; an undated charge sorts as the empty string did, last.
     report
         .transactions
@@ -435,8 +525,8 @@ mod tests {
                 balance: Money::from(100),
                 status: "open".into(),
                 lines: vec![
-                    line("  Groceries  ", "Chris", dec!(20.1), "2026-08-31", "b"),
-                    line("groceries", "chris", dec!(30.2), "2026-09-01", ""),
+                    line("  Groceries  ", "Alex", dec!(20.1), "2026-08-31", "b"),
+                    line("groceries", "alex", dec!(30.2), "2026-09-01", ""),
                     line("Fuel", "Sam", dec!(9.7), "", ""),
                 ],
                 ..Default::default()
@@ -505,10 +595,10 @@ mod tests {
         let r = all(&oracle());
         assert_eq!(r.people[0].name, "Sam");
         assert_eq!(r.people[0].amount, m(dec!(59.7)));
-        let chris = r.people.iter().find(|g| g.key == "chris").unwrap();
-        assert_eq!(chris.amount, m(dec!(50.3)));
+        let alex = r.people.iter().find(|g| g.key == "alex").unwrap();
+        assert_eq!(alex.amount, m(dec!(50.3)));
         // The first spelling seen is the one shown.
-        assert_eq!(chris.name, "Chris");
+        assert_eq!(alex.name, "Alex");
         assert_eq!(r.items[0].count, 2);
         assert_eq!(r.items[0].amount, m(dec!(50.3)));
         assert_eq!(r.items[0].name, "Groceries");
@@ -533,6 +623,57 @@ mod tests {
         assert_eq!(
             analyse(&oracle(), september(), Status::Settled, 0).withdrawn,
             Money::from(50)
+        );
+    }
+
+    #[test]
+    fn each_person_has_their_own_charges_split_the_same_ways() {
+        let r = all(&oracle());
+        let keys: Vec<&str> = r.per_person.iter().map(|p| p.key.as_str()).collect();
+        let order: Vec<&str> = r.people.iter().map(|g| g.key.as_str()).collect();
+        assert_eq!(keys, order, "in the order of who spent the most");
+
+        let sam = &r.per_person[0];
+        assert_eq!((sam.name.as_str(), sam.count), ("Sam", 2));
+        assert_eq!(sam.total, m(dec!(59.7)));
+        assert_eq!((sam.open, sam.settled), (m(dec!(9.7)), Money::from(50)));
+        assert_eq!(
+            (sam.everyday, sam.from_buckets),
+            (m(dec!(9.7)), Money::from(50))
+        );
+        let buckets: Vec<(&str, Money)> = sam
+            .buckets
+            .iter()
+            .map(|g| (g.name.as_str(), g.amount))
+            .collect();
+        assert_eq!(
+            buckets,
+            [
+                ("Travel", Money::from(50)),
+                ("Everyday spending", m(dec!(9.7)))
+            ]
+        );
+        assert_eq!(sam.cards.len(), 2);
+
+        let alex = r.per_person.iter().find(|p| p.key == "alex").unwrap();
+        assert_eq!(alex.items.len(), 1, "Groceries twice is one item");
+        assert_eq!(alex.items[0].count, 2);
+        let months: Vec<&str> = alex.months.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(months, ["2026-08", "2026-09"]);
+
+        // Every person's charges add up to the whole.
+        let total: Money = r.per_person.iter().map(|p| p.total).sum();
+        assert_eq!(total, r.total);
+        let none = r.per_person.iter().find(|p| p.key.is_empty()).unwrap();
+        assert_eq!(none.name, "Unattributed");
+        let charge = r
+            .transactions
+            .iter()
+            .find(|c| c.name == "Unnamed charge")
+            .unwrap();
+        assert_eq!(
+            (charge.member.as_str(), charge.spent_by.as_str()),
+            ("Unattributed", "")
         );
     }
 
@@ -610,11 +751,11 @@ mod tests {
     fn members_are_one_of_each_ignoring_case_in_name_order() {
         let mut ledger = oracle();
         ledger.income.push(IncomeStream {
-            owner: "Chris".into(),
+            owner: "Alex".into(),
             ..Default::default()
         });
-        let configured: Vec<String> = ["Sam", "chris", "Pat", ""].map(String::from).to_vec();
-        assert_eq!(members(&ledger, &configured), ["chris", "Pat", "Sam"]);
+        let configured: Vec<String> = ["Sam", "alex", "Pat", ""].map(String::from).to_vec();
+        assert_eq!(members(&ledger, &configured), ["alex", "Pat", "Sam"]);
     }
 
     #[test]

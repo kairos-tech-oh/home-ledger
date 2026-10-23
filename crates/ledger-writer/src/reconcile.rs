@@ -281,6 +281,48 @@ impl Writer {
         ))
     }
 
+    /// Says who made one charge, on an open statement or a settled one.
+    pub(crate) fn reconcile_member(
+        &self,
+        ledger: &mut Ledger,
+        id: &str,
+        line_id: &str,
+        member: &str,
+    ) -> Result<AuditEntry, WriteError> {
+        let Some(i) = position(&ledger.reconciliations, &valid_id(id)) else {
+            return Err(WriteError::Missing("no such reconciliation".into()));
+        };
+        let record = &mut ledger.reconciliations[i];
+        let wanted = valid_id(line_id);
+        let Some(line) = record.lines.iter_mut().find(|l| l.id == wanted) else {
+            return Err(WriteError::Missing(
+                "no such charge on that statement".into(),
+            ));
+        };
+        let member = plain(member, NAME_MAX);
+        if line.member == member {
+            return Err(WriteError::Unchanged("already that person's".into()));
+        }
+        let before = std::mem::replace(&mut line.member, member.clone());
+        let label = line.label.clone();
+        let amount = line.amount;
+        Ok(self.finish(
+            AuditEntry {
+                action: "Edit".into(),
+                subject: "reconciliation".into(),
+                name: format!("{} · {label}", title(record)),
+                amount: Some(amount),
+                changes: vec![AuditChange {
+                    field: "spent by".into(),
+                    from: before,
+                    to: member,
+                }],
+                ..Default::default()
+            },
+            "reconcile-member",
+        ))
+    }
+
     pub(crate) fn reconcile_delete(
         &self,
         ledger: &mut Ledger,
@@ -878,6 +920,50 @@ mod tests {
     }
 
     #[test]
+    fn who_spent_a_settled_charge_can_change_and_nothing_else() {
+        let mut s = setup();
+        let lines = json!([{ "label": "Costco", "amount": 60, "member": "Alex" },
+                           { "label": "Car service", "amount": 40, "bucketId": s.car }]);
+        let record = recon(&s, 100.0, lines);
+        set(&mut s.ledger, "", record).unwrap();
+        let rid = s.ledger.reconciliations[0].id.clone();
+        let before = money_state(&s.ledger);
+        settle(&mut s.ledger, &rid).unwrap();
+        let settled = money_state(&s.ledger);
+        let line = s.ledger.reconciliations[0].lines[0].id.clone();
+
+        let member = |ledger: &mut Ledger, line: &str, who: &str| {
+            let op = json!({ "op": "reconcile-member", "id": rid, "lineId": line, "member": who });
+            writer().apply(ledger, &serde_json::from_value(op).unwrap())
+        };
+        let entry = member(&mut s.ledger, &line, "  Jordan ").unwrap();
+        assert_eq!(s.ledger.reconciliations[0].lines[0].member, "Jordan");
+        assert_eq!(s.ledger.reconciliations[0].status, "settled");
+        assert_eq!(money_state(&s.ledger), settled, "no money moves");
+        assert_eq!(entry.changes[0].field, "spent by");
+        assert_eq!(
+            (entry.changes[0].from.as_str(), entry.changes[0].to.as_str()),
+            ("Alex", "Jordan")
+        );
+
+        assert!(matches!(
+            member(&mut s.ledger, &line, "Jordan"),
+            Err(WriteError::Unchanged(_))
+        ));
+        assert!(matches!(
+            member(&mut s.ledger, &"f".repeat(32), "Jordan"),
+            Err(WriteError::Missing(_))
+        ));
+        // Anything else on it is still history.
+        let record = recon(&s, 100.0, json!([]));
+        assert!(set(&mut s.ledger, &rid, record).is_err());
+
+        undo(&mut s.ledger, &rid).unwrap();
+        assert_eq!(money_state(&s.ledger), before);
+        assert_eq!(s.ledger.reconciliations[0].lines[0].member, "Jordan");
+    }
+
+    #[test]
     fn an_edit_cannot_claim_it_is_settled_or_that_money_moved() {
         let mut s = setup();
         let forged = json!({ "card": "Forged", "balance": 1, "status": "settled",
@@ -1189,7 +1275,9 @@ mod import_tests {
         let lines: Vec<_> = ledger.reconciliations[0]
             .lines
             .iter()
-            .map(|l| json!({ "id": l.id, "label": l.label, "amount": l.amount, "member": "Yuki" }))
+            .map(
+                |l| json!({ "id": l.id, "label": l.label, "amount": l.amount, "member": "Jordan" }),
+            )
             .collect();
         apply(
             &mut ledger,
@@ -1198,7 +1286,7 @@ mod import_tests {
         )
         .unwrap();
         let line = &ledger.reconciliations[0].lines[1];
-        assert_eq!(line.member, "Yuki", "the edit took");
+        assert_eq!(line.member, "Jordan", "the edit took");
         assert_eq!(line.bank_ref, "txn-A");
         assert_eq!(line.bank_text, "KROGER #920");
     }

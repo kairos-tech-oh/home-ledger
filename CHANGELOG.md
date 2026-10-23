@@ -10,6 +10,19 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Spending → By person: pick anyone to see what they spent in the chosen
+  dates, their share of the whole, everyday against bucket-funded, open
+  against settled, where it came from, their most frequent items, each month
+  and each card, and every charge of theirs.
+- Who spent a charge can be changed after its statement is settled, from
+  "Who?" on the charge in Reconcile or Spending. It is the only thing a
+  settled statement lets change: it moves no money, so the settle and its
+  undo stand, and every spending figure follows the change.
+
+### Changed
+- Reconcile lists only open statements; "Show settled" brings back the rest.
+
 ## [0.3.0] - 2026-10-22
 
 ### Fixed

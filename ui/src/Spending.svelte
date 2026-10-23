@@ -1,5 +1,6 @@
 <script lang="ts">
   import Breakdown from "./Breakdown.svelte";
+  import ChargeList from "./ChargeList.svelte";
   import {
     ledger,
     localToday,
@@ -11,15 +12,15 @@
 
   let { revision, onchanged }: { revision: number; onchanged: () => void } = $props();
 
-  const PAGE = 25;
-
   let period = $state("1m");
   let status = $state("all");
   let from = $state("");
   let to = $state(localToday());
   let report = $state<SpendingView | null>(null);
   let error = $state("");
-  let page = $state(0);
+  // The whole window, or one person's part of it.
+  let view = $state<"all" | "person">("all");
+  let personKey = $state<string | null>(null);
 
   let managingFamily = $state(false);
   let familyText = $state("");
@@ -34,7 +35,6 @@
         // An older question answered late must not replace a newer answer.
         if (asked.period === period && asked.status === status && asked.from === from && asked.to === to) {
           report = r;
-          page = 0;
           error = "";
         }
       })
@@ -68,8 +68,22 @@
     }
   }
 
-  const pages = $derived(report ? Math.ceil(report.transactions.length / PAGE) : 0);
-  const shown = $derived(report ? report.transactions.slice(page * PAGE, (page + 1) * PAGE) : []);
+  // The one chosen, or whoever spent the most when they are not in this window.
+  const person = $derived(
+    report?.perPerson.find((p) => p.key === personKey) ?? report?.perPerson[0] ?? null,
+  );
+  const theirs = $derived(
+    report && person
+      ? report.transactions.filter((c) => c.spentBy.toLowerCase() === person.key)
+      : [],
+  );
+  const question = $derived(`${period}|${status}|${from}|${to}`);
+
+  /// Whole percent of the total, for a person's share.
+  function share(part: string, whole: string): string {
+    const w = Number(whole);
+    return w > 0 ? ((Number(part) / w) * 100).toFixed(0) : "0";
+  }
 
   function plural(n: number, one: string, many: string): string {
     return `${n} ${n === 1 ? one : many}`;
@@ -99,6 +113,10 @@
       <input type="date" bind:value={to} />
     </label>
   {/if}
+  <div class="switch" role="group" aria-label="Show">
+    <button class:on={view === "all"} onclick={() => (view = "all")}>Everyone</button>
+    <button class:on={view === "person"} onclick={() => (view = "person")}>By person</button>
+  </div>
   <button onclick={openFamily}>{managingFamily ? "Close family names" : "Family names"}</button>
 </div>
 
@@ -133,6 +151,9 @@
     {/if}
   </p>
 
+  {#if view === "person"}
+    {@render byPerson(report)}
+  {:else}
   <section class="tiles">
     {#each [
       ["Itemized spending", money(report.total), plural(report.count, "charge", "charges")],
@@ -197,34 +218,68 @@
   </div>
 
   <div class="section-head"><h2>Matching charges</h2></div>
-  {#if report.transactions.length === 0}
-    <p class="empty">
-      No charges match these dates and status. Try All time or add lines to a reconciliation.
-    </p>
-  {:else}
-    <ul class="rows">
-      {#each shown as charge, i (page * PAGE + i)}
-        <li class="row">
-          <div class="row-main">
-            <span class="row-name">{charge.name}</span>
-            <span class="row-meta">
-              {charge.date || "Undated"}{charge.inferred && charge.date ? " (fallback)" : ""} ·
-              {charge.member} · {charge.bucket} · {charge.card} · {charge.status}
-            </span>
-          </div>
-          <span class="row-amount">{money(charge.amount)}</span>
-        </li>
-      {/each}
-    </ul>
-    {#if pages > 1}
-      <div class="pager">
-        <button disabled={page === 0} onclick={() => (page -= 1)}>Previous</button>
-        <span class="muted">{page + 1} / {pages}</span>
-        <button disabled={page + 1 >= pages} onclick={() => (page += 1)}>Next</button>
-      </div>
-    {/if}
+  {#key question}
+    <ChargeList
+      charges={report.transactions}
+      members={report.members}
+      {onchanged}
+      empty="No charges match these dates and status. Try All time or add lines to a reconciliation."
+    />
+  {/key}
   {/if}
 {/if}
+
+{#snippet byPerson(report: SpendingView)}
+  {#if !person}
+    <p class="empty">No charges match these dates and status, so no one has spent anything.</p>
+  {:else}
+    <div class="people" role="tablist" aria-label="Person">
+      {#each report.perPerson as p (p.key)}
+        <button
+          role="tab"
+          aria-selected={p.key === person.key}
+          class="person"
+          class:on={p.key === person.key}
+          onclick={() => (personKey = p.key)}
+        >
+          <span class="person-name">{p.name}</span>
+          <span class="person-figures">{money(p.total)} · {plural(p.count, "charge", "charges")}</span>
+        </button>
+      {/each}
+    </div>
+
+    <section class="tiles">
+      {#each [
+        [`${person.name} spent`, money(person.total), plural(person.count, "charge", "charges")],
+        ["Share of spending", `${share(person.total, report.total)}%`, `of ${money(report.total)}`],
+        ["Everyday spending", money(person.everyday), "not assigned to a bucket"],
+        ["Bucket-funded", money(person.fromBuckets), "assigned to savings buckets"],
+        ["Open", money(person.open), "not settled yet"],
+        ["Settled", money(person.settled), "already paid off"],
+      ] as [label, figure, note] (label)}
+        <article class="tile">
+          <div class="tile-label">{label}</div>
+          <div class="tile-figure">{figure}</div>
+          <div class="tile-note">{note}</div>
+        </article>
+      {/each}
+    </section>
+
+    <div class="breakdowns">
+      <Breakdown title="Where it came from" subtitle="Each bucket, and everyday spending" rows={person.buckets} />
+      <Breakdown title="Most frequent items" subtitle="Most occurrences first" rows={person.items} />
+      <Breakdown title="Monthly spending" subtitle="Oldest first · purchase or fallback date" rows={person.months} />
+      <Breakdown title="By card" subtitle="Itemized charges within the selected dates" rows={person.cards} />
+    </div>
+
+    <div class="section-head">
+      <h2>{person.key ? `${person.name}'s charges` : "Charges with no one named"}</h2>
+    </div>
+    {#key `${question}|${person.key}`}
+      <ChargeList charges={theirs} members={report.members} {onchanged} />
+    {/key}
+  {/if}
+{/snippet}
 
 <style>
   .filters {
@@ -243,10 +298,42 @@
     gap: 0.75rem;
     margin: 0.75rem 0;
   }
-  .pager {
+  .switch {
+    display: inline-flex;
+  }
+  .switch button {
+    border-radius: 0;
+  }
+  .switch button:first-child {
+    border-radius: 0.3rem 0 0 0.3rem;
+  }
+  .switch button:last-child {
+    border-radius: 0 0.3rem 0.3rem 0;
+  }
+  .switch button.on,
+  .person.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .people {
     display: flex;
-    align-items: center;
-    gap: 0.6rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     margin: 0.75rem 0;
+  }
+  .person {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    padding: 0.4rem 0.75rem;
+  }
+  .person-name {
+    font-weight: 600;
+  }
+  .person-figures {
+    font-size: 0.75rem;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
   }
 </style>

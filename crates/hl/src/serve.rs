@@ -291,7 +291,7 @@ mod tests {
             "statement settle Sapphire",
             "bank",
             "bank fetch",
-            "payday Chris --dry-run",
+            "payday Alex --dry-run",
             "help",
         ] {
             assert!(allowed(w(line)).is_ok(), "{line}");

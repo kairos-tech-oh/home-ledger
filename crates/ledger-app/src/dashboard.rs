@@ -666,8 +666,8 @@ mod tests {
             balance: Money::from(100),
             status: "open".into(),
             lines: vec![
-                line("  Groceries  ", "Chris", 2010, "2026-08-31", "b"),
-                line("groceries", "chris", 3020, "2026-09-01", ""),
+                line("  Groceries  ", "Alex", 2010, "2026-08-31", "b"),
+                line("groceries", "alex", 3020, "2026-09-01", ""),
                 line("Fuel", "Sam", 970, "", ""),
             ],
             ..Default::default()

@@ -2,6 +2,7 @@
   import StatementForm from "./StatementForm.svelte";
   import ImportPanel from "./ImportPanel.svelte";
   import ShortfallChoice, { type Choice } from "./ShortfallChoice.svelte";
+  import WhoEditor from "./WhoEditor.svelte";
   import {
     ledger,
     money,
@@ -143,6 +144,9 @@
 
   const open = $derived(reconciliations.filter((r) => r.status !== "settled"));
   const settled = $derived(reconciliations.filter((r) => r.status === "settled"));
+  // Settled statements are history, so they wait until asked for.
+  let showSettled = $state(false);
+  const listed = $derived(showSettled ? reconciliations : open);
   const openBalance = $derived(
     open.reduce((t, r) => t + Number(r.balance), 0).toFixed(2),
   );
@@ -188,7 +192,16 @@
 </section>
 
 <div class="section-head">
-  <h2>{reconciliations.length} reconciliations</h2>
+  <h2>
+    {showSettled
+      ? `${reconciliations.length} reconciliations`
+      : `${open.length} open statement${open.length === 1 ? "" : "s"}`}
+  </h2>
+  {#if settled.length > 0}
+    <button class="bare" onclick={() => (showSettled = !showSettled)}>
+      {showSettled ? "Hide settled" : `Show settled (${settled.length})`}
+    </button>
+  {/if}
   {#if !formOpen}
     <button onclick={() => { close(); adding = true; }} disabled={busy}>+ Statement</button>
   {/if}
@@ -254,7 +267,7 @@
 {/if}
 
 <ul class="rows">
-  {#each reconciliations as record (record.id)}
+  {#each listed as record (record.id)}
     <li class="row">
       <div class="row-main">
         <div class="head">
@@ -359,20 +372,31 @@
                 </div>
               </div>
               <span class="row-amount">{money(line.amount)}</span>
-              <span></span>
+              <WhoEditor
+                reconciliationId={record.id}
+                lineId={line.id}
+                member={line.member}
+                {members}
+                {onchanged}
+              />
             </li>
           {/each}
         </ul>
       </li>
     {/if}
   {:else}
-    <p class="empty">No reconciliations yet.</p>
+    <p class="empty">
+      {reconciliations.length === 0
+        ? "No reconciliations yet."
+        : "No open statements. Show settled to see the ones already paid."}
+    </p>
   {/each}
 </ul>
 
 <p class="note">
-  A settled statement is history: undo it to change it. Undo returns exactly what
-  the settle moved, even if the charges or balances have changed since.
+  A settled statement is history: undo it to change it. Only who spent each charge
+  can still be changed, since that moves no money. Undo returns exactly what the
+  settle moved, even if the charges or balances have changed since.
 </p>
 
 <style>
