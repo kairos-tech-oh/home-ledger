@@ -10,6 +10,15 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Security
+- TLS: rustls 0.23.46, rustls-webpki 0.103.16 and webpki-roots /
+  webpki-root-certs 1.0.10, which stop trusting the compromised eMudhra
+  (emSign) intermediates (CVE-2026-111943). Before, a certificate issued from
+  one of them would have been accepted for S3, Plaid, Finnhub, Google Drive
+  and the update check.
+- Development only: Vite 7.3.7 (CVE-2026-112942/3/4/5/6) and source-map-js
+  1.2.2 (CVE-2026-93749). Neither is in a release build.
+
 ## [0.3.1] - 2026-10-22
 
 ### Added
