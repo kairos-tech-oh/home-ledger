@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-22
+
 ### Security
 - TLS: rustls 0.23.46, rustls-webpki 0.103.16 and webpki-roots /
   webpki-root-certs 1.0.10, which stop trusting the compromised eMudhra
