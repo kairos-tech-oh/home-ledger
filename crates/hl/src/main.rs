@@ -110,7 +110,8 @@ enum Command {
         #[command(subcommand)]
         action: Option<AccountAction>,
     },
-    /// Savings buckets, or one; `hl bucket add|spend|set|move` moves money.
+    /// Savings buckets, or one; `hl bucket add|spend|set|move` moves money,
+    /// `hl bucket delete` removes an empty one.
     #[command(alias = "bucket")]
     Buckets {
         #[command(subcommand)]
@@ -323,6 +324,9 @@ enum BucketAction {
         #[arg(long)]
         to: String,
     },
+    /// Delete an empty bucket. One with money in it, or with charges on an
+    /// open statement, is refused.
+    Delete { bucket: String },
 }
 
 #[derive(Subcommand)]
@@ -499,6 +503,9 @@ async fn run(cli: Cli) -> Outcome {
                     "",
                 )
                 .await
+            }
+            Some(BucketAction::Delete { bucket }) => {
+                write::bucket(&s, &bucket, write::BucketAction::Delete, "").await
             }
         },
         Command::Budget => read::budget(&s).await,

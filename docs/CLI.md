@@ -109,6 +109,7 @@ next release's package over it.
 | `hl bucket spend <bucket> <amount> --cover <bucket>` · `--short everyday\|negative` | A spend larger than the bucket: the rest from another bucket, from everyday money, or below zero. Left out, the bucket's own "when short" decides |
 | `hl bucket link <bucket> --to <account>` · `hl bucket link --unlinked --to <account>` | Says which account a bucket's money is kept in; `--unlinked` does it for every bucket with none |
 | `hl bucket set <bucket> <amount>` · `hl bucket move <bucket> <amount> --to <bucket>` | Sets a bucket's cash; moves between buckets, and between their accounts when they differ |
+| `hl bucket delete <bucket>` | Deletes an empty bucket; one with money in it, or with charges on an open statement, is refused |
 | `hl payday <earner> [--undo]` | One paycheck's worth into every bucket that earner funds, and into each bucket's account, as the transfer into savings |
 | `hl statement new --card C --balance N --date D [--spend-source A] [--no-account-moves]` | Starts a statement, taking its spending account from the card's last one when not given; bucket money leaves each bucket's own account |
 | `hl statement import <statement> <file.csv> [--member All] [--bucket B]` | Adds the purchases from a bank export; payments and charges already there are left out |

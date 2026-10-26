@@ -47,6 +47,7 @@ pub enum BucketAction<'a> {
         amount: &'a str,
         to: &'a str,
     },
+    Delete,
 }
 
 /// Keeps one bucket, or every bucket with no account yet, in an account.
@@ -108,6 +109,7 @@ pub async fn bucket(s: &Session, bucket: &str, action: BucketAction<'_>, note: &
             let target = find(&v.buckets, to, "bucket", |b| &b.id, |b| &b.name)?;
             json!({ "op": "bucket-move", "fromId": b.id, "toId": target.id, "amount": amount(n)? })
         }
+        BucketAction::Delete => json!({ "op": "delete", "kind": "bucket", "id": b.id }),
     };
     s.edit(op).await
 }

@@ -25,7 +25,7 @@ fn refuse<T>(message: impl Into<String>) -> Result<T, WriteError> {
     Err(WriteError::Refused(message.into()))
 }
 
-fn title(record: &Reconciliation) -> String {
+pub(crate) fn title(record: &Reconciliation) -> String {
     let date = if record.statement_date.is_empty() {
         "undated"
     } else {
@@ -862,6 +862,14 @@ mod tests {
         let car = s.car.clone();
         apply(
             &mut s.ledger,
+            Op::BucketTotal {
+                id: car.clone(),
+                amount: Money::ZERO,
+            },
+        )
+        .unwrap();
+        apply(
+            &mut s.ledger,
             Op::Delete {
                 kind: Kind::Bucket,
                 id: car,
@@ -878,6 +886,43 @@ mod tests {
             after_delete,
             "a refused undo moved something"
         );
+    }
+
+    #[test]
+    fn a_bucket_goes_only_when_empty_and_no_open_statement_charges_it() {
+        let mut s = setup();
+        let car = s.car.clone();
+        let delete = Op::Delete {
+            kind: Kind::Bucket,
+            id: car.clone(),
+        };
+
+        let err = apply(&mut s.ledger, delete.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("still holds"), "{err}");
+
+        apply(
+            &mut s.ledger,
+            Op::BucketTotal {
+                id: car.clone(),
+                amount: Money::ZERO,
+            },
+        )
+        .unwrap();
+        let lines = json!([{ "label": "Car service", "amount": 300, "bucketId": car }]);
+        let record = recon(&s, 300.0, lines);
+        set(&mut s.ledger, "", record).unwrap();
+        let err = apply(&mut s.ledger, delete.clone())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("open statement"), "{err}");
+        assert!(s.ledger.bucket(&car).is_some(), "refused, but deleted");
+
+        let rid = s.ledger.reconciliations[0].id.clone();
+        apply(&mut s.ledger, Op::ReconcileDelete { id: rid }).unwrap();
+        apply(&mut s.ledger, delete).unwrap();
+        assert!(s.ledger.bucket(&car).is_none());
     }
 
     #[test]
@@ -1595,6 +1640,14 @@ mod cover_tests {
     fn deleting_the_cover_bucket_sends_its_dependant_back_to_asking() {
         let mut s = setup(json!({ "whenShort": "bucket", "coverBucketId": "OVERFLOW" }));
         let o = s.overflow.clone();
+        apply(
+            &mut s.ledger,
+            Op::BucketTotal {
+                id: o.clone(),
+                amount: Money::ZERO,
+            },
+        )
+        .unwrap();
         apply(
             &mut s.ledger,
             Op::Delete {
