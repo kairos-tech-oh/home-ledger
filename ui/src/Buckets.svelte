@@ -56,6 +56,7 @@
   // bucket's own "when short".
   let spendHow = $state<BucketView["whenShort"]>("");
   let spendFrom = $state("");
+  let confirmDelete = $state<BucketView | null>(null);
   let busy = $state(false);
   let error = $state("");
   let view = $state<"cards" | "table">("cards");
@@ -82,10 +83,28 @@
     };
   });
 
+  // Why a bucket cannot be deleted yet, or "" when it can. Its account holds
+  // exactly what its buckets hold, so one with money in it would take that
+  // money out of the account unrecorded; the ledger refuses both cases too.
+  function cannotDelete(bucket: BucketView): string {
+    if (bucket.cash !== "0.00") return `Holds ${money(bucket.cash)}; spend or move it first`;
+    if (bucket.committed !== "0.00") return "Has charges on an open statement";
+    return "";
+  }
+
+  function remove(bucket: BucketView) {
+    moving = null;
+    editing = null;
+    adding = false;
+    confirmDelete = bucket;
+    error = "";
+  }
+
   function edit(bucket: BucketView | null) {
     editing = bucket;
     adding = bucket === null;
     moving = null;
+    confirmDelete = null;
     name = bucket?.name ?? "";
     target = bucket?.target ?? "";
     notes = bucket?.notes ?? "";
@@ -100,6 +119,7 @@
     moving = { bucket, mode };
     editing = null;
     adding = false;
+    confirmDelete = null;
     amount = mode === "set" ? bucket.cash : "";
     label = "";
     toBucket = "";
@@ -124,6 +144,7 @@
       moving = null;
       editing = null;
       adding = false;
+      confirmDelete = null;
       amount = "";
       label = "";
       onchanged();
@@ -399,6 +420,26 @@
   </form>
 {/if}
 
+{#if confirmDelete}
+  <div class="warn-box">
+    <p>
+      Delete <strong>{confirmDelete.name}</strong>? It holds nothing, so no account changes. Goals
+      and budget lines that fill it are left without a bucket, and settled statements that drew
+      on it can no longer be undone.
+    </p>
+    <div class="actions">
+      <button
+        disabled={busy}
+        onclick={() =>
+          run(() => ledger.apply({ op: "delete", kind: "bucket", id: confirmDelete!.id }))}
+      >
+        Delete
+      </button>
+      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+    </div>
+  </div>
+{/if}
+
 {#if view === "cards"}
   <div class="cards">
     {#each ordered as bucket (bucket.id)}
@@ -451,6 +492,12 @@
             title="Set balance">=</button
           >
           <button class="bare" onclick={() => edit(bucket)} disabled={busy}>Edit</button>
+          <button
+            class="bare danger"
+            onclick={() => remove(bucket)}
+            disabled={busy || cannotDelete(bucket) !== ""}
+            title={cannotDelete(bucket) || "Delete"}>×</button
+          >
         </div>
       </article>
     {:else}
@@ -508,6 +555,12 @@
           title="Set balance">=</button
         >
         <button class="bare" onclick={() => edit(bucket)} disabled={busy}>Edit</button>
+        <button
+          class="bare danger"
+          onclick={() => remove(bucket)}
+          disabled={busy || cannotDelete(bucket) !== ""}
+          title={cannotDelete(bucket) || "Delete"}>×</button
+        >
       </div>
     </li>
   {:else}

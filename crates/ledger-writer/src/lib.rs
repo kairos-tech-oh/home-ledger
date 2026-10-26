@@ -497,6 +497,9 @@ impl Writer {
 
     fn delete(&self, ledger: &mut Ledger, kind: Kind, id: &str) -> Result<AuditEntry, WriteError> {
         let wanted = valid_id(id);
+        if kind == Kind::Bucket {
+            bucket_can_go(ledger, &wanted)?;
+        }
         let gone = match kind {
             Kind::Account => take(&mut ledger.accounts, &wanted, |a| &a.id).map(|a| a.name),
             Kind::Income => take(&mut ledger.income, &wanted, |a| &a.id).map(|a| a.name),
@@ -1103,6 +1106,34 @@ fn check_secured_loan(ledger: &Ledger, record: &ledger_domain::Account) -> Resul
         return Err(WriteError::Refused(format!(
             "that loan is already secured against {}",
             other.name
+        )));
+    }
+    Ok(())
+}
+
+/// A bucket goes only when it is empty and nothing open is waiting on it. An
+/// account that keeps buckets holds exactly the cash in them, so deleting one
+/// with money in it would take that money out of its account unrecorded, and
+/// an open statement charging it could no longer be settled.
+fn bucket_can_go(ledger: &Ledger, id: &str) -> Result<(), WriteError> {
+    let Some(bucket) = ledger.bucket(id) else {
+        return Ok(());
+    };
+    if !bucket.current_total.is_zero() {
+        return Err(WriteError::Refused(format!(
+            "{} still holds ${}; spend it or move it to another bucket first",
+            bucket.name, bucket.current_total
+        )));
+    }
+    if let Some(open) = ledger
+        .reconciliations
+        .iter()
+        .find(|r| r.status == "open" && r.lines.iter().any(|l| l.bucket_id == id))
+    {
+        return Err(WriteError::Refused(format!(
+            "{} has charges on the open statement {}; give them another bucket first",
+            bucket.name,
+            reconcile::title(open)
         )));
     }
     Ok(())

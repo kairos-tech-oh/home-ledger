@@ -10,6 +10,16 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-26
+
+### Added
+- A bucket can be deleted, with × on the Buckets page or `hl bucket delete`.
+  Only an empty one: a bucket's account holds exactly what its buckets hold,
+  so one with money in it is refused until the money is spent or moved, and
+  so is one with charges on an open statement. Its goals and budget lines are
+  left without a bucket, and a settled statement that drew on it can no
+  longer be undone.
+
 ## [0.3.2] - 2026-10-22
 
 ### Security
