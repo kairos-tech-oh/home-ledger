@@ -8,6 +8,7 @@
 
 pub mod audit;
 pub mod bank;
+pub mod bucket_detail;
 pub mod clock;
 pub mod commands;
 pub mod dashboard;

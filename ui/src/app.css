@@ -448,8 +448,31 @@ input::placeholder {
   background: rgba(0, 0, 0, 0.6);
 }
 
-.modal .panel {
+.modal.wide {
+  width: min(56rem, calc(100vw - 2rem));
+  padding: 0.9rem 1.1rem;
+}
+
+.modal .panel,
+.modal .warn-box {
   margin: 0;
+}
+
+.modal .panel h3 {
+  padding-right: 1.6rem;
+}
+
+.modal .warn-box {
+  padding: 0.7rem 2rem 0.6rem 0.8rem;
+}
+
+.modal-close {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
 }
 
 .modal .error {

@@ -303,7 +303,16 @@
       onchanged={load}
     />
   {:else if tab === "savings" && view}
-    <Buckets buckets={view.buckets} accounts={view.accounts} paydays={view.paydays} onchanged={load} />
+    <Buckets
+      buckets={view.buckets}
+      accounts={view.accounts}
+      paydays={view.paydays}
+      holdings={view.holdings}
+      budget={view.budget}
+      goals={view.goals}
+      reconciliations={view.reconciliations}
+      onchanged={load}
+    />
   {:else if tab === "goals" && view}
     <Goals goals={view.goals} totals={view.goalTotals} buckets={view.buckets} onchanged={load} />
   {:else if tab === "spending"}

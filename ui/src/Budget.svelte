@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import { SvelteSet } from "svelte/reactivity";
   import TypesPanel from "./TypesPanel.svelte";
   import TemplatesPanel from "./TemplatesPanel.svelte";
@@ -48,7 +49,14 @@
   let bucketId = $state("");
   let notes = $state("");
 
-  const open = $derived(adding || editing !== null);
+  const open = $derived(adding || editing !== null || confirmDelete !== null);
+
+  function close() {
+    editing = null;
+    adding = false;
+    confirmDelete = null;
+    error = "";
+  }
 
   // Sections rolled up by a click on their heading. Held apart from the view,
   // so switching between cards and table leaves them as they were.
@@ -196,8 +204,9 @@
   </div>
 </div>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !open}<p class="error">{error}</p>{/if}
 {#if managingTemplates}
+  <Modal onclose={() => (managingTemplates = false)}>
   <TemplatesPanel
     {templates}
     {budget}
@@ -205,8 +214,10 @@
     {onchanged}
     onclose={() => (managingTemplates = false)}
   />
+  </Modal>
 {/if}
 {#if managingTypes}
+  <Modal onclose={() => (managingTypes = false)}>
   <TypesPanel
     list="budget"
     types={budgetTypes}
@@ -214,9 +225,12 @@
     {onchanged}
     onclose={() => (managingTypes = false)}
   />
+  </Modal>
 {/if}
 
 {#if adding || editing}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); save(); }}>
     <h3>{editing ? `Edit ${editing.name}` : "Add a budget line"}</h3>
     <label class="field"><span>Name</span><input bind:value={name} required /></label>
@@ -253,14 +267,15 @@
     {/if}
     <div class="actions">
       <button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-      <button type="button" class="bare" onclick={() => { editing = null; adding = false; }}>
-        Cancel
-      </button>
+      <button type="button" class="bare" onclick={close}>Cancel</button>
     </div>
   </form>
+  </Modal>
 {/if}
 
 {#if confirmDelete}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p class="confirm-text">
       Delete <strong>{confirmDelete.name}</strong>?
@@ -276,9 +291,10 @@
       >
         Delete
       </button>
-      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+      <button class="bare" onclick={close}>Keep it</button>
     </div>
   </div>
+  </Modal>
 {/if}
 
 {#each grouped as group (group.type)}

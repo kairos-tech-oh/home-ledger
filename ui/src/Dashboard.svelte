@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import DashWidget from "./DashWidget.svelte";
   import WidgetEditor from "./WidgetEditor.svelte";
   import { ledger, type DashboardView, type Widget, type WidgetView } from "./ledger";
@@ -129,12 +130,14 @@
 {#if error}<p class="error">{error}</p>{/if}
 
 {#if editor && dash}
-  <WidgetEditor
-    existing={editor.widget}
-    {dash}
-    onsave={commit}
-    oncancel={() => (editor = null)}
-  />
+  <Modal onclose={() => (editor = null)}>
+    <WidgetEditor
+      existing={editor.widget}
+      {dash}
+      onsave={commit}
+      oncancel={() => (editor = null)}
+    />
+  </Modal>
 {/if}
 
 {#if editing}

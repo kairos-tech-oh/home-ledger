@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import {
     frequencies,
     frequencyLabel,
@@ -32,7 +33,14 @@
   let confirmDelete = $state<IncomeView | null>(null);
   let view = $state<"cards" | "table">("table");
 
-  const open = $derived(adding || editing !== null);
+  const open = $derived(adding || editing !== null || confirmDelete !== null);
+
+  function close() {
+    editing = null;
+    adding = false;
+    confirmDelete = null;
+    error = "";
+  }
   const annual = $derived(
     overview ? (Number(overview.monthlyIncome) * 12).toFixed(2) : null,
   );
@@ -133,9 +141,11 @@
   proportions.
 </p>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !open}<p class="error">{error}</p>{/if}
 
 {#if adding || editing}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); save(); }}>
     <h3>{editing ? `Edit ${editing.name}` : "Add an income stream"}</h3>
     <label class="field"><span>Name</span><input bind:value={name} required /></label>
@@ -169,14 +179,15 @@
     </label>
     <div class="actions">
       <button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-      <button type="button" class="bare" onclick={() => { editing = null; adding = false; }}>
-        Cancel
-      </button>
+      <button type="button" class="bare" onclick={close}>Cancel</button>
     </div>
   </form>
+  </Modal>
 {/if}
 
 {#if confirmDelete}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p class="confirm-text">
       Delete <strong>{confirmDelete.name}</strong>? Every earner share and budget split
@@ -190,9 +201,10 @@
       >
         Delete
       </button>
-      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+      <button class="bare" onclick={close}>Keep it</button>
     </div>
   </div>
+  </Modal>
 {/if}
 
 {#if view === "cards"}
