@@ -857,7 +857,8 @@ pub async fn history(state: &AppState) -> Answer<HistoryView> {
     Ok(history_of(state).await)
 }
 
-pub async fn history_of(state: &AppState) -> HistoryView {
+/// Every machine's history, oldest first, made up to match in demo mode.
+async fn gathered(state: &AppState) -> crate::audit::Gathered {
     let local = state.audit().read().await;
     let (primary, install) = {
         let live = state.live().await;
@@ -871,6 +872,17 @@ pub async fn history_of(state: &AppState) -> HistoryView {
             .chain(demo.edits.iter().cloned())
             .collect();
     }
+    gathered
+}
+
+/// The history entries themselves, oldest first, for figures worked out from
+/// them.
+pub async fn audit_entries(state: &AppState) -> Vec<ledger_domain::records::AuditEntry> {
+    gathered(state).await.entries
+}
+
+pub async fn history_of(state: &AppState) -> HistoryView {
+    let gathered = gathered(state).await;
 
     HistoryView {
         problems: gathered.problems,

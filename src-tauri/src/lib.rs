@@ -52,6 +52,7 @@ pub fn run() {
             bridge::connect_drive,
             bridge::ledger,
             bridge::history,
+            bridge::bucket_detail,
             bridge::projection,
             bridge::planning,
             bridge::spending,

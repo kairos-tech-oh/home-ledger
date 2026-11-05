@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import StatementForm from "./StatementForm.svelte";
   import ImportPanel from "./ImportPanel.svelte";
   import ShortfallChoice, { type Choice } from "./ShortfallChoice.svelte";
@@ -45,6 +46,7 @@
     editing = null;
     importing = null;
     confirming = null;
+    error = "";
   }
 
   async function run(action: () => Promise<unknown>) {
@@ -207,7 +209,7 @@
   {/if}
 </div>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !formOpen && !importing && !confirming}<p class="error">{error}</p>{/if}
 
 {#if overdrawn.length > 0}
   <div class="warn-box">
@@ -228,12 +230,17 @@
 {/if}
 
 {#if importing}
+  <Modal onclose={close} wide>
   <ImportPanel record={importing} {buckets} {members} {onchanged} onclose={close} />
+  </Modal>
 {/if}
 
-{#if adding}
+{#if adding || editing}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
+  {#if adding}
   <StatementForm {accounts} {buckets} {members} {busy} onsave={(f) => save("", f)} oncancel={close} />
-{:else if editing}
+  {:else if editing}
   <StatementForm
     existing={editing}
     {accounts}
@@ -243,9 +250,13 @@
     onsave={(f) => save(editing!.id, f)}
     oncancel={close}
   />
+  {/if}
+  </Modal>
 {/if}
 
 {#if confirming}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p class="confirm-text">{question}</p>
     {#if confirming.action === "settle"}
@@ -261,9 +272,10 @@
             ? "Undo settle"
             : "Delete"}
       </button>
-      <button class="bare" onclick={() => (confirming = null)}>Not now</button>
+      <button class="bare" onclick={close}>Not now</button>
     </div>
   </div>
+  </Modal>
 {/if}
 
 <ul class="rows">

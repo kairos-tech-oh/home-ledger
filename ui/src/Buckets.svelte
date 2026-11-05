@@ -1,18 +1,49 @@
 <script lang="ts">
-  import { ledger, money, type AccountView, type BucketView, type PaydayView } from "./ledger";
+  import BucketDetail from "./BucketDetail.svelte";
+  import {
+    ledger,
+    money,
+    type AccountView,
+    type BucketView,
+    type BudgetView,
+    type GoalView,
+    type HoldingView,
+    type PaydayView,
+    type ReconciliationView,
+  } from "./ledger";
+  import Modal from "./Modal.svelte";
   import { largestFirst } from "./order";
 
   let {
     buckets,
     accounts = [],
     paydays = [],
+    holdings = [],
+    budget = [],
+    goals = [],
+    reconciliations = [],
     onchanged,
   }: {
     buckets: BucketView[];
     accounts?: AccountView[];
     paydays?: PaydayView[];
+    holdings?: HoldingView[];
+    budget?: BudgetView[];
+    goals?: GoalView[];
+    reconciliations?: ReconciliationView[];
     onchanged: () => void;
   } = $props();
+
+  // The bucket open in detail, by id, so it follows the ledger as it reloads
+  // and closes by itself when the bucket is deleted.
+  let showingId = $state<string | null>(null);
+  const showing = $derived(buckets.find((b) => b.id === showingId) ?? null);
+
+  /** A click anywhere on a card or row opens it, except on its own buttons. */
+  function reveal(e: MouseEvent, bucket: BucketView) {
+    if ((e.target as Element).closest("button, a, input, select")) return;
+    showingId = bucket.id;
+  }
 
   // Where a bucket's money can be kept: anywhere money is held, not a debt
   // and not a home or car.
@@ -69,7 +100,16 @@
   let coverBucketId = $state("");
   let accountId = $state("");
 
-  const open = $derived(adding || editing !== null || moving !== null);
+  const open = $derived(adding || editing !== null || moving !== null || confirmDelete !== null);
+
+  /** Closes whichever form is open, leaving the detail behind it open. */
+  function close() {
+    moving = null;
+    editing = null;
+    adding = false;
+    confirmDelete = null;
+    error = "";
+  }
   const ordered = $derived(largestFirst(buckets));
 
   const totals = $derived.by(() => {
@@ -273,15 +313,13 @@
       <button class:on={view === "cards"} onclick={() => (view = "cards")}>Cards</button>
       <button class:on={view === "table"} onclick={() => (view = "table")}>Table</button>
     </div>
-    {#if !open}
-      <button onclick={() => edit(null)} disabled={busy}>+ Bucket</button>
-    {/if}
+    <button onclick={() => edit(null)} disabled={busy}>+ Bucket</button>
   </div>
 </div>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !open}<p class="error">{error}</p>{/if}
 
-{#if unlinked.length > 0 && !open}
+{#if unlinked.length > 0}
   <div class="warn-box link-all">
     <p>
       {unlinked.length === buckets.length ? "No bucket says" : `${unlinked.length} bucket${unlinked.length === 1 ? " doesn't say" : "s don't say"}`}
@@ -301,6 +339,8 @@
 {/if}
 
 {#if adding || editing}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); saveBucket(); }}>
     <h3>{editing ? `Edit ${editing.name}` : "Add a bucket"}</h3>
     <label class="field"><span>Name</span><input bind:value={name} required /></label>
@@ -344,14 +384,15 @@
     {/if}
     <div class="actions">
       <button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-      <button type="button" class="bare" onclick={() => { editing = null; adding = false; }}>
-        Cancel
-      </button>
+      <button type="button" class="bare" onclick={close}>Cancel</button>
     </div>
   </form>
+  </Modal>
 {/if}
 
 {#if moving}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); applyMoney(); }}>
     <h3>{verb} {moving.bucket.name}</h3>
     <label class="field">
@@ -415,12 +456,15 @@
     {/if}
     <div class="actions">
       <button type="submit" disabled={busy}>{busy ? "Working…" : "Confirm"}</button>
-      <button type="button" class="bare" onclick={() => (moving = null)}>Cancel</button>
+      <button type="button" class="bare" onclick={close}>Cancel</button>
     </div>
   </form>
+  </Modal>
 {/if}
 
 {#if confirmDelete}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p>
       Delete <strong>{confirmDelete.name}</strong>? It holds nothing, so no account changes. Goals
@@ -435,20 +479,41 @@
       >
         Delete
       </button>
-      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+      <button class="bare" onclick={close}>Keep it</button>
     </div>
   </div>
+  </Modal>
+{/if}
+
+{#if showing}
+  <BucketDetail
+    bucket={showing}
+    {holdings}
+    {budget}
+    {goals}
+    {reconciliations}
+    canMove={!showing.locked && buckets.length > 1}
+    cannotDelete={cannotDelete(showing)}
+    {busy}
+    onaction={(mode) => start(showing!, mode)}
+    onedit={() => edit(showing)}
+    ondelete={() => remove(showing!)}
+    onclose={() => (showingId = null)}
+  />
 {/if}
 
 {#if view === "cards"}
   <div class="cards">
     {#each ordered as bucket (bucket.id)}
-      <article class="card">
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+      <article class="card openable" onclick={(e) => reveal(e, bucket)}>
         <div class="card-top">
           {#if bucket.locked}<span class="pill muted">locked</span>{/if}
           {#if bucket.target}<span class="card-where">of {money(bucket.target)}</span>{/if}
         </div>
-        <div class="card-name">{bucket.name}</div>
+        <button class="reveal card-name" onclick={() => (showingId = bucket.id)} title="Show {bucket.name} in detail">
+          {bucket.name}
+        </button>
         <div class="card-note" class:warn-text={!bucket.accountId}>
           {bucket.accountName || "no account"}
         </div>
@@ -507,10 +572,13 @@
 {:else}
 <ul class="rows">
   {#each ordered as bucket (bucket.id)}
-    <li class="row">
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+    <li class="row openable" onclick={(e) => reveal(e, bucket)}>
       <div class="row-main">
         <div class="head">
-          <span class="row-name">{bucket.name}</span>
+          <button class="reveal row-name" onclick={() => (showingId = bucket.id)} title="Show {bucket.name} in detail">
+            {bucket.name}
+          </button>
           {#if bucket.locked}<span class="pill muted">locked</span>{/if}
           {#if bucket.progress !== null && bucket.target}
             <span class="bar" title="{bucket.progress.toFixed(0)}% of {money(bucket.target)}">
@@ -570,6 +638,26 @@
 {/if}
 
 <style>
+  .openable {
+    cursor: pointer;
+  }
+  .card.openable:hover {
+    border-color: color-mix(in srgb, var(--text) 25%, var(--hairline));
+  }
+  .reveal {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .reveal:hover {
+    text-decoration: underline;
+    background: none;
+  }
   .link-all .actions select {
     max-width: 16rem;
   }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import PlanForm from "./PlanForm.svelte";
   import Projection from "./Projection.svelte";
   import { kindLabel, ledger, money, type RetirementView } from "./ledger";
@@ -93,16 +94,19 @@
   </div>
 </div>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !editing}<p class="error">{error}</p>{/if}
 {#if said}<p class="ok">{said}</p>{/if}
 
 {#if editing}
-  <PlanForm
-    account={editing}
-    {busy}
-    onsave={(f) => savePlan(editing!.id, f)}
-    oncancel={() => (editing = null)}
-  />
+  <Modal onclose={() => { editing = null; error = ""; }}>
+    {#if error}<p class="error">{error}</p>{/if}
+    <PlanForm
+      account={editing}
+      {busy}
+      onsave={(f) => savePlan(editing!.id, f)}
+      oncancel={() => { editing = null; error = ""; }}
+    />
+  </Modal>
 {/if}
 
 {#if view === "cards"}

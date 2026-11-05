@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import { ledger, money, wholeMoney, type BucketView, type GoalTotalsView, type GoalView } from "./ledger";
   import { largestFirst } from "./order";
 
@@ -25,7 +26,7 @@
   let bucketId = $state("");
   let notes = $state("");
 
-  const open = $derived(adding || editing !== null);
+  const open = $derived(adding || editing !== null || confirmDelete !== null);
   const bucketChoices = $derived(largestFirst(buckets));
   const chosen = $derived(buckets.find((b) => b.id === bucketId) ?? null);
 
@@ -44,6 +45,8 @@
   function close() {
     editing = null;
     adding = false;
+    confirmDelete = null;
+    error = "";
   }
 
   async function run(action: () => Promise<unknown>) {
@@ -113,9 +116,11 @@
   {/if}
 </div>
 
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !open}<p class="error">{error}</p>{/if}
 
-{#if open}
+{#if adding || editing}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); save(); }}>
     <h3>{editing ? `Edit ${editing.name}` : "Add a goal"}</h3>
     <label class="field">
@@ -154,9 +159,12 @@
       <button type="button" class="bare" onclick={close}>Cancel</button>
     </div>
   </form>
+  </Modal>
 {/if}
 
 {#if confirmDelete}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p>
       Delete <strong>{confirmDelete.name}</strong>? The bucket behind it keeps its money;
@@ -170,12 +178,13 @@
       >
         Delete
       </button>
-      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+      <button class="bare" onclick={close}>Keep it</button>
     </div>
   </div>
+  </Modal>
 {/if}
 
-{#if goals.length === 0 && !open}
+{#if goals.length === 0 && !adding}
   <div class="empty-state">
     <p><strong>No goals yet</strong></p>
     <p class="muted">

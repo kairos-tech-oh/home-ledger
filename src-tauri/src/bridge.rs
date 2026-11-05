@@ -5,8 +5,9 @@
 use ledger_app::bank as bk;
 use ledger_app::{Answer, AppState};
 use ledger_app::{
-    commands as cmd, dashboard as dash, encryption as enc, planning as plan, quotes as q,
-    snapshots as snap, spending as spend, storage as st, transactions as tx, views as v,
+    bucket_detail as bd, commands as cmd, dashboard as dash, encryption as enc, planning as plan,
+    quotes as q, snapshots as snap, spending as spend, storage as st, transactions as tx,
+    views as v,
 };
 use ledger_config::{Secret, StoreConfig};
 use ledger_store::{StoreStatus, SyncState};
@@ -94,6 +95,8 @@ forward! {
         -> st::Connected => st::connect_drive;
 
     ledger() -> v::LedgerView => v::ledger;
+    bucket_detail(id: String, today: String, offset_minutes: i64)
+        -> bd::BucketDetail => bd::bucket_detail;
     history() -> v::HistoryView => v::history;
     projection() -> v::ProjectionView => v::projection;
 }

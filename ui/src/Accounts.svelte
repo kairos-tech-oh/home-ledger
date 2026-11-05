@@ -39,6 +39,7 @@
   function close() {
     adding = false;
     editing = null;
+    confirmDelete = null;
     error = "";
   }
 
@@ -187,7 +188,7 @@
   </section>
 {/if}
 
-{#if error && !open}<p class="error">{error}</p>{/if}
+{#if error && !open && !confirmDelete}<p class="error">{error}</p>{/if}
 
 {#if open}
   <Modal onclose={close}>
@@ -213,6 +214,8 @@
 {/if}
 
 {#if confirmDelete}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p class="confirm-text">
       Delete <strong>{confirmDelete.name}</strong>? Anything pointing at it — income,
@@ -226,9 +229,10 @@
       >
         Delete
       </button>
-      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+      <button class="bare" onclick={close}>Keep it</button>
     </div>
   </div>
+  </Modal>
 {/if}
 
 {#each grouped as group (group.key)}

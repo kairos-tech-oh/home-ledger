@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Modal from "./Modal.svelte";
   import HoldingDetail from "./HoldingDetail.svelte";
   import HoldingForm from "./HoldingForm.svelte";
   import TypesPanel from "./TypesPanel.svelte";
@@ -40,13 +41,14 @@
   let error = $state("");
   let managingTypes = $state(false);
 
-  const open = $derived(adding || editing !== null || trading !== null);
+  const open = $derived(adding || editing !== null || trading !== null || confirmDelete !== null);
 
   function close() {
     adding = false;
     editing = null;
     trading = null;
     confirmDelete = null;
+    error = "";
   }
 
   function startTrade(holding: HoldingView, which: "buy" | "sell") {
@@ -214,14 +216,19 @@
 
 {#if priceError}<p class="error">{priceError}</p>{/if}
 {#if priceSaid}<p class="ok">{priceSaid}</p>{/if}
-{#if error}<p class="error">{error}</p>{/if}
+{#if error && !open}<p class="error">{error}</p>{/if}
 {#if managingTypes}
+  <Modal onclose={() => (managingTypes = false)}>
   <TypesPanel list="investment" {types} fixed={fixedTypes} {onchanged} onclose={() => (managingTypes = false)} />
+  </Modal>
 {/if}
 
-{#if adding}
+{#if adding || editing}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
+  {#if adding}
   <HoldingForm {accounts} {buckets} {types} {busy} onsave={(f) => save("", f)} oncancel={close} />
-{:else if editing}
+  {:else if editing}
   <HoldingForm
     existing={editing}
     {accounts}
@@ -231,9 +238,13 @@
     onsave={(f) => save(editing!.id, f)}
     oncancel={close}
   />
+  {/if}
+  </Modal>
 {/if}
 
 {#if trading}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <form class="panel" onsubmit={(e) => { e.preventDefault(); trade(); }}>
     <h3>{side === "buy" ? "Buy more" : "Sell some"} of {trading.name}</h3>
     <div class="toggle">
@@ -265,9 +276,12 @@
       <button type="button" class="bare" onclick={close}>Cancel</button>
     </div>
   </form>
+  </Modal>
 {/if}
 
 {#if confirmDelete}
+  <Modal onclose={close}>
+  {#if error}<p class="error">{error}</p>{/if}
   <div class="warn-box">
     <p class="confirm-text">
       Delete <strong>{confirmDelete.name}</strong> and its
@@ -281,9 +295,10 @@
       >
         Delete
       </button>
-      <button class="bare" onclick={() => (confirmDelete = null)}>Keep it</button>
+      <button class="bare" onclick={close}>Keep it</button>
     </div>
   </div>
+  </Modal>
 {/if}
 
 {#each grouped as group (group.name)}

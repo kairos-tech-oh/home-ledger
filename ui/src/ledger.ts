@@ -548,6 +548,44 @@ export interface ImportPreview {
   setAside: number;
 }
 
+/** One movement of a bucket's cash, read back out of the change history. */
+export interface BucketMovement {
+  id: string;
+  at: string;
+  kind: "add" | "spend" | "move";
+  action: string;
+  label: string;
+  delta: string;
+  /** The bucket's cash just after. */
+  balance: string;
+  actor: string;
+}
+
+export interface BucketDetail {
+  id: string;
+  /** Newest first. */
+  recent: BucketMovement[];
+  recentFrom: string;
+  /** Days of change history the monthly figures are averaged over. */
+  historyDays: number;
+  addedMonthly: string;
+  spentMonthly: string;
+  movedMonthly: string;
+  /** From the daily snapshots, investments included. */
+  growth: {
+    fromAt: string;
+    toAt: string;
+    from: string;
+    to: string;
+    delta: string;
+    monthly: string;
+  } | null;
+  /** Oldest first. */
+  months: { month: string; end: string; change: string | null }[];
+  /** Seconds since the epoch, and the bucket's total. */
+  series: [number, number][];
+}
+
 export interface PaydayView {
   owner: string;
   total: string;
@@ -817,6 +855,12 @@ export const bank = {
 export const ledger = {
   read: () => invoke<LedgerView>("ledger"),
   history: () => invoke<HistoryView>("history"),
+  bucketDetail: (id: string) =>
+    invoke<BucketDetail>("bucket_detail", {
+      id,
+      today: localToday(),
+      offsetMinutes: -new Date().getTimezoneOffset(),
+    }),
   /** Null when the edit was valid but had nothing to do. */
   apply: (op: Op) => invoke<Applied | null>("apply", { op }),
   projection: () => invoke<ProjectionView>("projection"),
