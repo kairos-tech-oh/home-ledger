@@ -10,6 +10,15 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Fixed
+- Editing a statement opens in a wide pop-up, so each charge's name, amount,
+  bucket, who spent it and date all show on one row without scrolling, under
+  column headings. In a narrow window the name takes a row of its own.
+- Retirement plans, budget templates and the dashboard widget editor open
+  wide too, so a long fund name, a template's details and the widget choices
+  show without being cut off or scrolled. A bucket's holdings in its detail
+  wrap rather than cut off.
+
 ## [0.3.4] - 2026-11-04
 
 ### Added

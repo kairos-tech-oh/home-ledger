@@ -110,19 +110,40 @@
     </span>
     <button type="button" class="bare" onclick={addLine}>+ Charge</button>
   </div>
+  {#if lines.length > 0}
+    <div class="line line-labels muted" aria-hidden="true">
+      <span>Charge</span>
+      <span>Amount</span>
+      <span>Came out of</span>
+      <span>Who spent it</span>
+      <span>Date</span>
+      <span></span>
+    </div>
+  {/if}
   {#each lines as line, i (i)}
     <div class="line">
-      <input bind:value={line.label} placeholder="Kroger, gas, car service…" />
-      <input bind:value={line.amount} inputmode="decimal" placeholder="0.00" />
-      <select bind:value={line.bucketId}>
+      <input
+        bind:value={line.label}
+        placeholder="Kroger, gas, car service…"
+        aria-label="Charge"
+        title={line.label}
+      />
+      <input bind:value={line.amount} inputmode="decimal" placeholder="0.00" aria-label="Amount" />
+      <select bind:value={line.bucketId} aria-label="Came out of">
         <option value="">Everyday spending</option>
         {#each buckets as bucket (bucket.id)}
           <option value={bucket.id}>{bucket.name} · {money(bucket.cash)}</option>
         {/each}
       </select>
       <MemberPicker bind:value={line.member} {members} />
-      <input type="date" bind:value={line.spentOn} />
-      <button type="button" class="bare" onclick={() => lines.splice(i, 1)}>×</button>
+      <input type="date" bind:value={line.spentOn} aria-label="Date" />
+      <button
+        type="button"
+        class="bare"
+        title="Remove this charge"
+        aria-label="Remove this charge"
+        onclick={() => lines.splice(i, 1)}>×</button
+      >
     </div>
   {/each}
 
@@ -162,9 +183,32 @@
     align-items: center;
     font-size: 0.75rem;
   }
+  /* Opened in a wide pop-up, so every field of a charge shows in full on one
+     row: the name gets what is left after the fixed columns. */
   .line {
     display: grid;
-    grid-template-columns: 1fr 6rem 12rem 7rem 9rem auto;
+    grid-template-columns: minmax(10rem, 1fr) 7rem minmax(10rem, 14rem) 9rem 9.5rem 1.6rem;
     gap: 0.4rem;
+    align-items: center;
+  }
+  .line > :global(*) {
+    min-width: 0;
+  }
+  .line-labels {
+    font-size: 0.68rem;
+  }
+  /* A narrow window: the name takes a row of its own, the rest share one. */
+  @media (max-width: 60rem) {
+    .line {
+      grid-template-columns: 7rem minmax(9rem, 1fr) 8rem 9rem 1.6rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .line > :first-child {
+      grid-column: 1 / -1;
+    }
+    .line-labels {
+      display: none;
+    }
   }
 </style>

@@ -98,7 +98,7 @@
 {#if said}<p class="ok">{said}</p>{/if}
 
 {#if editing}
-  <Modal onclose={() => { editing = null; error = ""; }}>
+  <Modal onclose={() => { editing = null; error = ""; }} wide>
     {#if error}<p class="error">{error}</p>{/if}
     <PlanForm
       account={editing}

@@ -236,7 +236,7 @@
 {/if}
 
 {#if adding || editing}
-  <Modal onclose={close}>
+  <Modal onclose={close} wide>
   {#if error}<p class="error">{error}</p>{/if}
   {#if adding}
   <StatementForm {accounts} {buckets} {members} {busy} onsave={(f) => save("", f)} oncancel={close} />
