@@ -206,7 +206,7 @@
 
 {#if error && !open}<p class="error">{error}</p>{/if}
 {#if managingTemplates}
-  <Modal onclose={() => (managingTemplates = false)}>
+  <Modal onclose={() => (managingTemplates = false)} wide>
   <TemplatesPanel
     {templates}
     {budget}

@@ -64,14 +64,20 @@
   </div>
   {#each sleeves as sleeve, i (i)}
     <div class="sleeve">
-      <input bind:value={sleeve.name} placeholder="Fund name" />
-      <input bind:value={sleeve.percent} inputmode="decimal" placeholder="%" />
-      <select bind:value={sleeve.assetClass}>
+      <input bind:value={sleeve.name} placeholder="Fund name" aria-label="Fund name" title={sleeve.name} />
+      <input bind:value={sleeve.percent} inputmode="decimal" placeholder="%" aria-label="Weight" />
+      <select bind:value={sleeve.assetClass} aria-label="Asset class">
         {#each assetClasses as option (option.value)}
           <option value={option.value}>{option.label}</option>
         {/each}
       </select>
-      <button type="button" class="bare" onclick={() => sleeves.splice(i, 1)}>×</button>
+      <button
+        type="button"
+        class="bare"
+        title="Remove this fund"
+        aria-label="Remove this fund"
+        onclick={() => sleeves.splice(i, 1)}>×</button
+      >
     </div>
   {:else}
     <p class="note">Optional. How the account is split between funds, from your statement.</p>
@@ -91,9 +97,23 @@
     align-items: center;
     font-size: 0.75rem;
   }
+  /* Opened in a wide pop-up, so a fund's full name fits beside its weight. */
   .sleeve {
     display: grid;
-    grid-template-columns: 1fr 5rem 11rem auto;
+    grid-template-columns: minmax(12rem, 1fr) 6rem minmax(10rem, 14rem) 1.6rem;
     gap: 0.4rem;
+    align-items: center;
+  }
+  .sleeve > :global(*) {
+    min-width: 0;
+  }
+  /* A narrow window: the name takes a row of its own. */
+  @media (max-width: 40rem) {
+    .sleeve {
+      grid-template-columns: 6rem minmax(0, 1fr) 1.6rem;
+    }
+    .sleeve > :first-child {
+      grid-column: 1 / -1;
+    }
   }
 </style>

@@ -130,7 +130,7 @@
 {#if error}<p class="error">{error}</p>{/if}
 
 {#if editor && dash}
-  <Modal onclose={() => (editor = null)}>
+  <Modal onclose={() => (editor = null)} wide>
     <WidgetEditor
       existing={editor.widget}
       {dash}

@@ -473,6 +473,10 @@
   .columns section {
     min-width: 0;
   }
+  /* Half a pop-up is too narrow to cut a holding's details off at one line. */
+  .columns :global(.row-meta) {
+    white-space: normal;
+  }
   .head {
     display: flex;
     align-items: center;
