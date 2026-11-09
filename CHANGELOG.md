@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-08
+
 ### Fixed
 - Editing a statement opens in a wide pop-up, so each charge's name, amount,
   bucket, who spent it and date all show on one row without scrolling, under
