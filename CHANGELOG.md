@@ -10,6 +10,24 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- Building and running on a Mac, for development: `tools/macos-install.sh`
+  checks the toolchain and builds the app, `tools/release/macos.conf.json`
+  supplies the bundle targets and the icon that the Windows and Linux
+  configuration does not, and [docs/MACOS.md](docs/MACOS.md) covers the setup,
+  what is not signed, and the differences from a supported platform. macOS
+  remains outside the release matrix and a build there is unsigned. No
+  application code changed.
+
+### Fixed
+- A secret written to the keychain on macOS was reported as saved and was then
+  gone, because `keyring` compiles in a backend per platform and only the
+  Windows and Linux ones were asked for; without the host's backend it falls
+  back to an in-memory store while still reporting a keychain as available.
+  Any machine can now check its own with
+  `cargo run -p ledger-config --example keychain-check`, and a kb claim holds
+  the round trip. Windows and Linux are unaffected.
+
 ## [0.3.5] - 2026-11-08
 
 ### Fixed

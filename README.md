@@ -92,6 +92,10 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf
 sudo pacman -S webkit2gtk-4.1 gtk3 librsvg
 ```
 
+On a Mac, `tools/macos-install.sh` checks the toolchain and builds the app.
+macOS is not a release target and a build there is unsigned, but it works for
+development: see [docs/MACOS.md](docs/MACOS.md).
+
 Windows installers are built in CI on a Windows runner rather than
 cross-compiled, because NSIS, the WebView2 bootstrapper and code signing all
 misbehave under cross-compilation. Pushing a `v*` tag drafts a release with the

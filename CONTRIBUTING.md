@@ -23,7 +23,9 @@ them privately, as [SECURITY.md](SECURITY.md) describes, not as an issue.
 
 You need [Rust](https://rustup.rs) (1.90 or newer) and Node 22 or newer. On
 Linux, also the webview packages listed in the [README](README.md#building-it).
-On Windows, the Visual Studio C++ build tools.
+On Windows, the Visual Studio C++ build tools. On macOS, which is not a release
+target but builds from source, see [docs/MACOS.md](docs/MACOS.md) — it also
+covers the two gates below, one of which needs a newer bash than macOS ships.
 
 ```sh
 npm install && npm --prefix ui install
