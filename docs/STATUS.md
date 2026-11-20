@@ -45,14 +45,14 @@ Each of these chose the harder path deliberately. They are not open questions.
   and the owner keeps every option for later releases, including closed ones.
 - **No personal identity anywhere** — not in the data, not in the device
   label, not in git authorship. There is a regression test for the device
-  label, and a kb claim for the data.
+  label.
 
 ---
 
 ## What works
 
 Roughly 19,100 lines across the Rust crates and the Svelte interface, 277
-tests, 25 kb claims.
+tests.
 
 ### The core
 
@@ -276,6 +276,3 @@ cargo run -p ledger-writer --example settle-check -- <ledger.json> # settle/undo
 
 The first path is the prototype's own copy; `~/.local/share/home-ledger/` is
 this app's local mirror, which can be behind it.
-
-Every claim in `kb/` carries the command that proves it. They are the
-shortest description of what this app promises.

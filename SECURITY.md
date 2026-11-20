@@ -77,8 +77,8 @@ credentials, that they should not be able to. For example:
   under a recovery code, both stretched with Argon2id, and each machine keeps
   the unwrapped key only in its OS keychain. See docs/STORAGE.md.
 - Secrets live in the OS keychain, or are read at request time from
-  `~/.aws/credentials`, and never enter the stored configuration; a test and a
-  kb claim hold that in place.
+  `~/.aws/credentials`, and never enter the stored configuration; a test holds
+  that in place.
 - Only the primary store is ever written, and every write is conditional, so a
   stale copy cannot overwrite a newer one.
 - Every derived figure is computed in Rust; the interface only renders it.

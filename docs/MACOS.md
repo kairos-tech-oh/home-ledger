@@ -103,19 +103,6 @@ on. Rebuild from source to update.
 npm run check
 ```
 
-`tools/kb-check.sh` is a different story: it uses `mapfile`, a bash 4 builtin,
-and macOS ships bash 3.2 as `/bin/bash`. On a stock Mac it fails immediately
-with `mapfile: command not found` and checks nothing. Install a current bash
-and put it ahead of the system one:
-
-```sh
-brew install bash
-PATH="$(brew --prefix)/bin:$PATH" tools/kb-check.sh
-```
-
-Since CONTRIBUTING.md asks for both gates before a pull request, a Mac
-contributor needs this.
-
 ## The keychain
 
 `keyring` picks its backend with a Cargo feature, and the features named in
@@ -128,9 +115,8 @@ On macOS that means credentials appear to save and are gone on restart: the S3
 keys, the Plaid keys, and the data key that opens an encrypted ledger. The last
 one matters most, because an encrypted ledger whose key is gone cannot be read.
 
-`apple-native` is in the feature list, so this works. The round trip is a kb
-claim — [the keychain is the one the machine has](../kb/the-keychain-is-the-one-the-machine-has.md) —
-and you can check any machine with:
+`apple-native` is in the feature list, so this works. You can check any
+machine with:
 
 ```sh
 cargo run -q -p ledger-config --example keychain-check

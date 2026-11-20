@@ -1,4 +1,4 @@
-// Display order for lists of figures. No imports, so the kb can run it.
+// Display order for lists of figures.
 
 /** Items split by key, in the given order; keys it does not name follow, as first seen. */
 export function sections<T>(

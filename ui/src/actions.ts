@@ -1,4 +1,4 @@
-// The pill colour for a history entry's action. No imports, so the kb can run it.
+// The pill colour for a history entry's action.
 
 export type Tone = "blue" | "green" | "amber" | "red" | "violet" | "muted";
 
