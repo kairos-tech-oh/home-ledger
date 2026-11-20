@@ -369,7 +369,7 @@ mod tests {
         let audit = Audit::new(dir.path());
         std::fs::write(dir.path().join("audit.json"), b"not json").unwrap();
 
-        audit.append(entry("2026-09-21T00:00:00Z")).await.unwrap();
+        audit.append(entry(&now_iso())).await.unwrap();
         assert_eq!(audit.read().await.len(), 1);
     }
 
@@ -377,11 +377,13 @@ mod tests {
     async fn entries_come_back_in_the_order_they_happened() {
         let dir = tempfile::tempdir().unwrap();
         let audit = Audit::new(dir.path());
-        audit.append(entry("2026-09-20T00:00:00Z")).await.unwrap();
-        audit.append(entry("2026-09-21T00:00:00Z")).await.unwrap();
+        // Relative to today: append drops anything older than KEEP_DAYS.
+        let (earlier, later) = (days_before(&now_iso(), 1), now_iso());
+        audit.append(entry(&earlier)).await.unwrap();
+        audit.append(entry(&later)).await.unwrap();
 
         let entries = audit.read().await;
-        assert_eq!(entries[0].name, "2026-09-20T00:00:00Z");
-        assert_eq!(entries[1].name, "2026-09-21T00:00:00Z");
+        assert_eq!(entries[0].name, earlier);
+        assert_eq!(entries[1].name, later);
     }
 }
