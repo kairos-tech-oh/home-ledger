@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { look, setTheme, type Theme } from "./theme.svelte";
   import PriceKey from "./PriceKey.svelte";
   import BankPanel from "./BankPanel.svelte";
   import SnapshotImport from "./SnapshotImport.svelte";
@@ -258,6 +259,21 @@
 
   <div class="appearance">
     <label class="field">
+      <span>Look</span>
+      <select
+        value={look.theme}
+        onchange={(e) => setTheme(e.currentTarget.value as Theme)}
+      >
+        <option value="terminal">Terminal</option>
+        <option value="finance">Finance</option>
+      </select>
+    </label>
+    <p class="note">Kept on this device only.</p>
+  </div>
+
+  {#if look.theme === "terminal"}
+  <div class="appearance">
+    <label class="field">
       <span>Window opacity</span>
       <input
         type="range"
@@ -282,6 +298,7 @@
       palette as the desktop plugin.
     </p>
   </div>
+  {/if}
 
   <div class="device">
     <label class="field">

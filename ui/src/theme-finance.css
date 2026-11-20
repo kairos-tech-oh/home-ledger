@@ -1,0 +1,402 @@
+/* Finance: a light, quiet theme in the manner of market sites. Every rule is scoped to
+   data-theme="finance", so the terminal look underneath is untouched. */
+
+:root[data-theme="finance"] {
+  --ground: 255, 255, 255;
+  --ink: 32, 33, 36;
+  --text: #202124;
+  --dim: #5f6368;
+  --faint: #80868b;
+  --hairline: #dadce0;
+  --raised: #ffffff;
+  --raised-strong: #f1f3f4;
+  --control: #ffffff;
+  --menu: #ffffff;
+
+  --accent: #1a73e8;
+  --positive: #137333;
+  --negative: #c5221f;
+  --warn: #b06000;
+
+  --pill-blue: #1967d2;
+  --pill-violet: #8430ce;
+  --pill-green: #137333;
+  --pill-amber: #b06000;
+  --pill-red: #c5221f;
+
+  --tint-positive: #e6f4ea;
+  --tint-negative: #fce8e6;
+  --tint-accent: #e8f0fe;
+  --shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+
+  color-scheme: light;
+  font-family: Roboto, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  /* Figures still line up in columns, without a monospace face. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Labels read as words, not as terminal headings. */
+:root[data-theme="finance"] * {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+:root[data-theme="finance"] body {
+  background: #ffffff;
+}
+
+/* ------------------------------------------------------------ header */
+
+:root[data-theme="finance"] .app-bar {
+  padding: 1rem 1.25rem 0.5rem;
+}
+
+:root[data-theme="finance"] .app-bar h1 {
+  font-size: 1.375rem;
+  font-weight: 400;
+  color: var(--text);
+}
+
+:root[data-theme="finance"] .app-bar .summary,
+:root[data-theme="finance"] .app-bar .sync {
+  font-size: 0.857rem;
+}
+
+:root[data-theme="finance"] .nav-row {
+  padding: 0.25rem 1.25rem 0.75rem;
+}
+
+/* -------------------------------------------------------------- nav */
+
+:root[data-theme="finance"] nav {
+  gap: 0.5rem;
+}
+
+:root[data-theme="finance"] nav .group {
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  border-color: var(--hairline);
+  color: var(--text);
+  font-weight: 500;
+}
+
+:root[data-theme="finance"] nav .group.on {
+  background: var(--tint-accent);
+  border-color: var(--tint-accent);
+  color: var(--pill-blue);
+}
+
+:root[data-theme="finance"] nav .group .here {
+  color: var(--pill-blue);
+  font-weight: 400;
+}
+
+:root[data-theme="finance"] nav .menu {
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0;
+}
+
+:root[data-theme="finance"] nav .menu button {
+  border-radius: 0;
+  padding: 0.55rem 1rem;
+  font-weight: 400;
+}
+
+:root[data-theme="finance"] nav .menu button.on {
+  background: var(--tint-accent);
+  color: var(--pill-blue);
+}
+
+/* ---------------------------------------------------------- controls */
+
+:root[data-theme="finance"] button {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  border-color: var(--hairline);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+:root[data-theme="finance"] button:not(:disabled):hover {
+  background: #f6fafe;
+  border-color: #d2e3fc;
+}
+
+:root[data-theme="finance"] button.bare {
+  color: var(--dim);
+  border-color: transparent;
+  padding: 0.25rem 0.6rem;
+}
+
+:root[data-theme="finance"] button.bare:not(:disabled):hover {
+  background: var(--raised-strong);
+  color: var(--text);
+}
+
+:root[data-theme="finance"] .toggle {
+  gap: 0;
+}
+
+:root[data-theme="finance"] .toggle button {
+  border-radius: 0;
+  color: var(--dim);
+}
+
+:root[data-theme="finance"] .toggle button:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+:root[data-theme="finance"] .toggle button:last-child {
+  border-radius: 0 999px 999px 0;
+  margin-left: -1px;
+}
+
+:root[data-theme="finance"] .toggle button.on {
+  background: var(--tint-accent);
+  border-color: var(--hairline);
+  color: var(--pill-blue);
+}
+
+:root[data-theme="finance"] input,
+:root[data-theme="finance"] select,
+:root[data-theme="finance"] textarea {
+  border-radius: 0.25rem;
+  padding: 0.45rem 0.6rem;
+  background-color: #ffffff;
+  border-color: var(--hairline);
+}
+
+:root[data-theme="finance"] input:focus,
+:root[data-theme="finance"] select:focus,
+:root[data-theme="finance"] textarea:focus {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+  outline-offset: 0;
+}
+
+:root[data-theme="finance"] select {
+  /* Room for the chevron, which the shared padding above would otherwise cover. */
+  padding-right: 2rem;
+  background-position: right 0.7rem center;
+  background-repeat: no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235f6368' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------- cards and figures */
+
+:root[data-theme="finance"] .page {
+  padding: 1rem 1.25rem 2.5rem;
+}
+
+:root[data-theme="finance"] .section-head {
+  margin: 1.25rem 0 0.75rem;
+}
+
+:root[data-theme="finance"] .section-head h2,
+:root[data-theme="finance"] h2 {
+  font-size: 1.15rem;
+  font-weight: 400;
+}
+
+:root[data-theme="finance"] .tile,
+:root[data-theme="finance"] .card,
+:root[data-theme="finance"] .panel {
+  background: #ffffff;
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+}
+
+:root[data-theme="finance"] .tile {
+  padding: 1rem 1.1rem;
+}
+
+:root[data-theme="finance"] .tile-label {
+  font-size: 0.857rem;
+  color: var(--dim);
+}
+
+:root[data-theme="finance"] .tile-figure {
+  font-size: 1.85rem;
+  font-weight: 400;
+  margin: 0.15rem 0 0.2rem;
+}
+
+:root[data-theme="finance"] .tile-note,
+:root[data-theme="finance"] .card-note,
+:root[data-theme="finance"] .card-where,
+:root[data-theme="finance"] .row-meta,
+:root[data-theme="finance"] .group-count,
+:root[data-theme="finance"] .note {
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+
+:root[data-theme="finance"] .card {
+  padding: 0.9rem 1rem;
+  gap: 0.3rem;
+}
+
+:root[data-theme="finance"] .card-name,
+:root[data-theme="finance"] .row-name {
+  font-weight: 500;
+}
+
+:root[data-theme="finance"] .card-figure {
+  font-size: 1.5rem;
+  font-weight: 400;
+}
+
+:root[data-theme="finance"] .cards {
+  gap: 0.75rem;
+}
+
+/* Rows separated by rules, as a market table is. */
+:root[data-theme="finance"] .rows {
+  gap: 0;
+}
+
+:root[data-theme="finance"] .row {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  padding: 0.7rem 0.5rem;
+}
+
+:root[data-theme="finance"] .row:hover {
+  background: #f8f9fa;
+  border-color: var(--hairline);
+}
+
+:root[data-theme="finance"] .row-amount,
+:root[data-theme="finance"] .group-total {
+  font-weight: 500;
+}
+
+/* A group header that folds is a button underneath, but reads as a heading. */
+:root[data-theme="finance"] button.group-head.fold {
+  color: var(--text);
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+}
+
+:root[data-theme="finance"] button.group-head.fold:not(:disabled):hover {
+  background: #f8f9fa;
+  border-color: var(--hairline);
+}
+
+:root[data-theme="finance"] .group-head {
+  background: transparent;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  padding: 0.6rem 0.5rem;
+  margin-top: 1.25rem;
+  font-weight: 500;
+}
+
+/* Dashboard widgets: a quiet title over one large, light figure. */
+:root[data-theme="finance"] .widget {
+  background: #ffffff;
+  border-radius: 0.5rem;
+  padding: 1rem 1.1rem;
+}
+
+:root[data-theme="finance"] .widget .title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+:root[data-theme="finance"] .widget .display {
+  font-size: 2rem;
+  font-weight: 400;
+}
+
+:root[data-theme="finance"] .widget .headline,
+:root[data-theme="finance"] .widget .heading,
+:root[data-theme="finance"] .widget .name,
+:root[data-theme="finance"] .widget .strong {
+  font-weight: 500;
+}
+
+:root[data-theme="finance"] .widget .label {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+/* Category pills become soft chips. */
+:root[data-theme="finance"] .pill {
+  border: none;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* Money held and owed get the green and red chips of a price change. */
+:root[data-theme="finance"] .tile-figure.pos,
+:root[data-theme="finance"] .card-figure.pos {
+  color: var(--positive);
+}
+
+:root[data-theme="finance"] .tile-figure.neg,
+:root[data-theme="finance"] .card-figure.neg {
+  color: var(--negative);
+}
+
+/* ------------------------------------------------------- pop-ups */
+
+:root[data-theme="finance"] .modal {
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+  padding: 0.75rem;
+}
+
+:root[data-theme="finance"] .modal::backdrop {
+  background: rgba(32, 33, 36, 0.4);
+}
+
+:root[data-theme="finance"] .modal .panel {
+  border: none;
+}
+
+:root[data-theme="finance"] .panel h3 {
+  font-size: 1.05rem;
+  font-weight: 400;
+}
+
+:root[data-theme="finance"] .field > span:first-child {
+  font-size: 0.857rem;
+}
+
+:root[data-theme="finance"] .warn-box {
+  background: #fef7e0;
+  border-color: #fde293;
+}
+
+/* A form's own action is the one filled button on the screen. */
+:root[data-theme="finance"] button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+:root[data-theme="finance"] button[type="submit"]:not(:disabled):hover {
+  background: #1765cc;
+  border-color: #1765cc;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+}
+
+/* Whatever is chosen in a row of choices, as the active range is on a chart. */
+:root[data-theme="finance"] button.on {
+  background: var(--tint-accent);
+  border-color: var(--tint-accent);
+  color: var(--pill-blue);
+}
