@@ -265,7 +265,9 @@
         onchange={(e) => setTheme(e.currentTarget.value as Theme)}
       >
         <option value="terminal">Terminal</option>
-        <option value="finance">Finance</option>
+        <option value="finance-light">Finance, light</option>
+        <option value="finance-dark">Finance, dark</option>
+        <option value="finance-system">Finance, as the device is set</option>
       </select>
     </label>
     <p class="note">Kept on this device only.</p>
