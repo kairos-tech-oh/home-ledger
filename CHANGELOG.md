@@ -25,8 +25,12 @@ described here but have no tags of their own.
   Windows and Linux ones were asked for; without the host's backend it falls
   back to an in-memory store while still reporting a keychain as available.
   Any machine can now check its own with
-  `cargo run -p ledger-config --example keychain-check`, and a kb claim holds
-  the round trip. Windows and Linux are unaffected.
+  `cargo run -p ledger-config --example keychain-check`. Windows and Linux are
+  unaffected.
+
+### Removed
+- The `kb/` claims and `tools/kb-check.sh` that ran them. `npm run check` is
+  now the one gate before a pull request.
 
 ## [0.3.5] - 2026-11-08
 

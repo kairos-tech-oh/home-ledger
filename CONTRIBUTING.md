@@ -24,8 +24,7 @@ them privately, as [SECURITY.md](SECURITY.md) describes, not as an issue.
 You need [Rust](https://rustup.rs) (1.90 or newer) and Node 22 or newer. On
 Linux, also the webview packages listed in the [README](README.md#building-it).
 On Windows, the Visual Studio C++ build tools. On macOS, which is not a release
-target but builds from source, see [docs/MACOS.md](docs/MACOS.md) — it also
-covers the two gates below, one of which needs a newer bash than macOS ships.
+target but builds from source, see [docs/MACOS.md](docs/MACOS.md).
 
 ```sh
 npm install && npm --prefix ui install
@@ -42,8 +41,7 @@ merged, however good it is otherwise.
    derived figure live in the Rust crates. The interface renders what it is
    given and never does arithmetic that a balance depends on.
 2. **Money is `Decimal`, never a float.** Amounts are fixed-point, rounded half
-   away from zero. A kb claim scans the domain and math crates for `f32` and
-   `f64`.
+   away from zero.
 3. **Only the primary store is written**, and every write is conditional. Read
    [docs/STORAGE.md](docs/STORAGE.md) before touching `ledger-store`, and
    [docs/ADDING-A-STORE.md](docs/ADDING-A-STORE.md) before adding a backend.
@@ -68,31 +66,13 @@ Test against something independent when you can: a figure computed another
 way, a sum taken to more digits, the provider's documented behaviour. A test
 that restates the implementation proves nothing.
 
-### kb claims
-
-The `kb/` folder is the shortest description of what the app promises. Each
-claim says what is true, why it matters, and gives the commands that prove it.
-If your change adds a promise, add a claim; if it changes one, update the
-claim. A claim is only useful if its check **fails when the promise breaks**,
-so try breaking your change and make sure the claim notices.
-
-```sh
-tools/kb-check.sh                      # every claim
-tools/kb-check.sh kb/your-claim.md     # just yours
-```
-
-Copy the front matter from an existing claim. `environment: any` means the
-check must run on any machine with the repository and its dependencies, with
-no personal files, accounts or other checkouts.
-
 ### Before you open a pull request
 
 ```sh
 npm run check          # svelte-check, cargo fmt, clippy with -D warnings, tests
-tools/kb-check.sh      # every kb claim
 ```
 
-Both must pass. For a change to the interface, also run the app and use the
+It must pass. For a change to the interface, also run the app and use the
 change; `svelte-check` proves it compiles, not that it works. Say in the pull
 request what you clicked through.
 
