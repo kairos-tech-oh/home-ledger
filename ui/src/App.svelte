@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { look } from "./theme.svelte";
   import { api, type Overview, type StoreStatus, type SyncState } from "./lib";
   import Storage from "./Storage.svelte";
   import Accounts from "./Accounts.svelte";
@@ -85,7 +86,8 @@
   // painted on body and the window behind it is transparent.
   $effect(() => {
     if (setup) {
-      document.documentElement.style.setProperty("--surface-alpha", String(setup.opacity));
+      const alpha = look.theme === "terminal" ? setup.opacity : 1;
+      document.documentElement.style.setProperty("--surface-alpha", String(alpha));
     }
   });
 
@@ -203,7 +205,7 @@
   });
 </script>
 
-<header>
+<header class="app-bar">
   <div class="title">
     <h1>Home Ledger</h1>
     {#if summary && !firstRun}

@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-20
+
 ### Added
 - Building and running on a Mac, for development: `tools/macos-install.sh`
   checks the toolchain and builds the app, `tools/release/macos.conf.json`
@@ -18,6 +20,16 @@ described here but have no tags of their own.
   what is not signed, and the differences from a supported platform. macOS
   remains outside the release matrix and a build there is unsigned. No
   application code changed.
+- Two new looks beside Terminal, chosen in Settings → Appearance and kept per
+  device: **Finance**, light and calm with large figures, and **Trading**,
+  dense and technical. Each comes light, dark, or following the device's own
+  setting. Terminal stays the default.
+
+### Changed
+- Settings is organised into sections, one open at a time: General,
+  Appearance, Privacy, Storage, Security, Connections, Data and About. Each
+  setting is a row with its explanation beside its control, and on/off
+  settings are switches.
 
 ### Fixed
 - A secret written to the keychain on macOS was reported as saved and was then
@@ -27,6 +39,8 @@ described here but have no tags of their own.
   Any machine can now check its own with
   `cargo run -p ledger-config --example keychain-check`. Windows and Linux are
   unaffected.
+- The Plaid key fields were each a few characters wide; they now stack one to
+  a row.
 
 ### Removed
 - The `kb/` claims and `tools/kb-check.sh` that ran them. `npm run check` is

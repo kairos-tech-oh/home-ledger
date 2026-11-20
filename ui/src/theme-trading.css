@@ -1,0 +1,393 @@
+/* Trading: a dense, technical theme in the manner of charting platforms. Every rule is
+   scoped to data-theme="trading"; dark is its natural mode, with a light one beside it. */
+
+:root[data-theme="trading"] {
+  --ground: 19, 23, 34;
+  --ink: 209, 212, 220;
+  --text: #d1d4dc;
+  --dim: #787b86;
+  --faint: #5d606b;
+  --hairline: #2a2e39;
+  --raised: #1e222d;
+  --raised-strong: #2a2e39;
+  --control: #1e222d;
+  --menu: #1e222d;
+
+  --accent: #2962ff;
+  --positive: #089981;
+  --negative: #f23645;
+  --warn: #ff9800;
+
+  --pill-blue: #5b8cff;
+  --pill-violet: #9c6bff;
+  --pill-green: #22ab94;
+  --pill-amber: #ffa726;
+  --pill-red: #f7525f;
+
+  --surface: #1e222d;
+  --hover: #2a2e39;
+  --tint-accent: rgba(41, 98, 255, 0.18);
+  --on-accent: #ffffff;
+  --accent-strong: #1e53e5;
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --warn-tint: rgba(255, 152, 0, 0.1);
+  --warn-edge: rgba(255, 152, 0, 0.4);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23787b86' stroke-width='1.5'/%3E%3C/svg%3E");
+
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu,
+    "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Light: white panels on a pale ground, the same accents a shade deeper. */
+:root[data-theme="trading"][data-mode="light"] {
+  --ground: 240, 243, 250;
+  --ink: 19, 23, 34;
+  --text: #131722;
+  --dim: #6a6d78;
+  --faint: #9598a1;
+  --hairline: #e0e3eb;
+  --raised: #ffffff;
+  --raised-strong: #f0f3fa;
+  --control: #ffffff;
+  --menu: #ffffff;
+
+  --positive: #08857a;
+  --negative: #e5303e;
+  --warn: #e68a00;
+
+  --pill-blue: #2962ff;
+  --pill-violet: #7b3fe4;
+  --pill-green: #08857a;
+  --pill-amber: #d68000;
+  --pill-red: #e5303e;
+
+  --surface: #ffffff;
+  --hover: #f0f3fa;
+  --tint-accent: rgba(41, 98, 255, 0.1);
+  --backdrop: rgba(19, 23, 34, 0.35);
+  --shadow: 0 2px 12px rgba(19, 23, 34, 0.15);
+  --warn-tint: #fff3e0;
+  --warn-edge: #ffcc80;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236a6d78' stroke-width='1.5'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+}
+
+:root[data-theme="trading"] * {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+:root[data-theme="trading"] body {
+  background: rgb(var(--ground));
+}
+
+/* ------------------------------------------- top bar and tabs */
+
+:root[data-theme="trading"] .app-bar {
+  background: var(--surface);
+  padding: 0.6rem 1rem 0.3rem;
+}
+
+:root[data-theme="trading"] .app-bar h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+:root[data-theme="trading"] .nav-row {
+  background: var(--surface);
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* Flat tabs, the open one underlined, as a chart's toolbar is. */
+:root[data-theme="trading"] nav {
+  gap: 0;
+}
+
+:root[data-theme="trading"] nav .group {
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0.55rem 0.85rem;
+  color: var(--dim);
+  font-weight: 500;
+  background: transparent;
+}
+
+:root[data-theme="trading"] nav .group:not(:disabled):hover {
+  color: var(--text);
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: var(--faint);
+}
+
+:root[data-theme="trading"] nav .group.on,
+:root[data-theme="trading"] nav .group.on:not(:disabled):hover {
+  color: var(--text);
+  background: transparent;
+  border-bottom-color: var(--accent);
+}
+
+:root[data-theme="trading"] nav .group .here {
+  color: var(--accent);
+}
+
+:root[data-theme="trading"] nav .menu {
+  border: 1px solid var(--hairline);
+  border-radius: 0.375rem;
+  box-shadow: var(--shadow);
+  padding: 0.25rem 0;
+}
+
+:root[data-theme="trading"] nav .menu button {
+  border: none;
+  border-radius: 0;
+  padding: 0.45rem 0.9rem;
+  color: var(--text);
+}
+
+:root[data-theme="trading"] nav .menu button.on {
+  background: var(--tint-accent);
+  color: var(--accent);
+}
+
+/* ------------------------------------------------- controls */
+
+:root[data-theme="trading"] button {
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  border-color: var(--hairline);
+  color: var(--text);
+  font-weight: 500;
+}
+
+:root[data-theme="trading"] button:not(:disabled):hover {
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+
+:root[data-theme="trading"] button.bare {
+  color: var(--dim);
+  border-color: transparent;
+}
+
+:root[data-theme="trading"] button.bare:not(:disabled):hover {
+  color: var(--text);
+}
+
+:root[data-theme="trading"] button.on {
+  background: var(--tint-accent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+:root[data-theme="trading"] button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+:root[data-theme="trading"] button[type="submit"]:not(:disabled):hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+/* Segmented, as a chart's range picker is. */
+:root[data-theme="trading"] .toggle {
+  gap: 0;
+}
+
+:root[data-theme="trading"] .toggle button {
+  border-radius: 0;
+  color: var(--dim);
+}
+
+:root[data-theme="trading"] .toggle button:first-child {
+  border-radius: 0.25rem 0 0 0.25rem;
+}
+
+:root[data-theme="trading"] .toggle button:last-child {
+  border-radius: 0 0.25rem 0.25rem 0;
+  margin-left: -1px;
+}
+
+:root[data-theme="trading"] input,
+:root[data-theme="trading"] select,
+:root[data-theme="trading"] textarea {
+  border-radius: 0.25rem;
+  padding: 0.35rem 0.55rem;
+  background-color: rgb(var(--ground));
+  border-color: var(--hairline);
+}
+
+:root[data-theme="trading"] input:focus,
+:root[data-theme="trading"] select:focus,
+:root[data-theme="trading"] textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+:root[data-theme="trading"] select {
+  padding-right: 1.8rem;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+}
+
+/* -------------------------------------------- panels and figures */
+
+:root[data-theme="trading"] .page {
+  padding: 0.75rem 1rem 2rem;
+}
+
+:root[data-theme="trading"] .section-head {
+  margin: 0.9rem 0 0.5rem;
+}
+
+:root[data-theme="trading"] .section-head h2,
+:root[data-theme="trading"] h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+:root[data-theme="trading"] .tile,
+:root[data-theme="trading"] .card,
+:root[data-theme="trading"] .panel,
+:root[data-theme="trading"] .widget {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0.375rem;
+}
+
+:root[data-theme="trading"] .tiles {
+  gap: 0.5rem;
+}
+
+:root[data-theme="trading"] .tile {
+  padding: 0.7rem 0.85rem;
+}
+
+:root[data-theme="trading"] .tile-label,
+:root[data-theme="trading"] .widget .label {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--dim);
+}
+
+:root[data-theme="trading"] .tile-figure {
+  font-size: 1.55rem;
+  font-weight: 600;
+}
+
+:root[data-theme="trading"] .tile-note,
+:root[data-theme="trading"] .card-note,
+:root[data-theme="trading"] .card-where,
+:root[data-theme="trading"] .row-meta,
+:root[data-theme="trading"] .group-count,
+:root[data-theme="trading"] .note {
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+:root[data-theme="trading"] .card {
+  padding: 0.7rem 0.85rem;
+}
+
+:root[data-theme="trading"] .card-figure {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+:root[data-theme="trading"] .widget {
+  padding: 0.8rem 0.9rem;
+}
+
+:root[data-theme="trading"] .widget .title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+:root[data-theme="trading"] .widget .display {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+/* Dense rows on rules, as a watchlist is. */
+:root[data-theme="trading"] .rows {
+  gap: 0;
+}
+
+:root[data-theme="trading"] .row {
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  padding: 0.45rem 0.5rem;
+}
+
+:root[data-theme="trading"] .row:hover {
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+
+:root[data-theme="trading"] .group-head,
+:root[data-theme="trading"] button.group-head.fold {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+:root[data-theme="trading"] button.group-head.fold:not(:disabled):hover {
+  background: var(--hover);
+}
+
+:root[data-theme="trading"] .pill {
+  border: none;
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+/* ------------------------------------------------------- pop-ups */
+
+:root[data-theme="trading"] .modal {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0.375rem;
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="trading"] .modal::backdrop {
+  background: var(--backdrop);
+}
+
+:root[data-theme="trading"] .modal .panel {
+  border: none;
+}
+
+:root[data-theme="trading"] .panel h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+:root[data-theme="trading"] .warn-box {
+  background: var(--warn-tint);
+  border-color: var(--warn-edge);
+}
+
+:root[data-theme="trading"] .field > span:first-child {
+  font-size: 0.85rem;
+  color: var(--dim);
+}

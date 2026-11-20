@@ -26,8 +26,7 @@
 
   const f = $derived(widget.figures);
   const title = $derived(
-    (widget.title || widget.label).toUpperCase() +
-      (widget.title ? `  ·  ${widget.label.toUpperCase()}` : ""),
+    (widget.title || widget.label) + (widget.title ? `  ·  ${widget.label}` : ""),
   );
 
   const negative = (v: string) => v.startsWith("-");
@@ -289,6 +288,7 @@
     font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--dim);
     overflow: hidden;
     text-overflow: ellipsis;
