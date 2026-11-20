@@ -395,10 +395,11 @@
 </div>
 
 <style>
+  /* One field to a row: side by side, each input was left a few characters wide. */
   .keys {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-    gap: 0 0.75rem;
+    grid-template-columns: minmax(0, 32rem);
+    gap: 0.5rem;
   }
   .item {
     border-top: 1px solid var(--hairline);
