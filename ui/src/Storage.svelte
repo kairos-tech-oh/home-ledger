@@ -268,6 +268,9 @@
         <option value="finance-light">Finance, light</option>
         <option value="finance-dark">Finance, dark</option>
         <option value="finance-system">Finance, as the device is set</option>
+        <option value="trading-dark">Trading, dark</option>
+        <option value="trading-light">Trading, light</option>
+        <option value="trading-system">Trading, as the device is set</option>
       </select>
     </label>
     <p class="note">Kept on this device only.</p>

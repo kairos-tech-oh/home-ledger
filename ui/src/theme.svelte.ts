@@ -1,9 +1,18 @@
-// The look, chosen per device: the terminal style the Omarchy plugin shares, or Finance,
-// which is light, dark, or follows the device's own setting.
-export type Theme = "terminal" | "finance-light" | "finance-dark" | "finance-system";
+// The look, chosen per device: the terminal style the Omarchy plugin shares, or Finance or
+// Trading, each light, dark, or following the device's own setting.
+type Mode = "light" | "dark" | "system";
+export type Theme = "terminal" | `finance-${Mode}` | `trading-${Mode}`;
 
 const KEY = "home-ledger.theme";
-const CHOICES: Theme[] = ["terminal", "finance-light", "finance-dark", "finance-system"];
+const CHOICES: Theme[] = [
+  "terminal",
+  "finance-light",
+  "finance-dark",
+  "finance-system",
+  "trading-dark",
+  "trading-light",
+  "trading-system",
+];
 
 function stored(): Theme {
   try {
@@ -28,15 +37,15 @@ export function applyTheme() {
     delete root.dataset.mode;
     return;
   }
-  root.dataset.theme = "finance";
-  const dark =
-    look.theme === "finance-dark" || (look.theme === "finance-system" && !!prefersDark?.matches);
+  const [family, mode] = look.theme.split("-");
+  root.dataset.theme = family;
+  const dark = mode === "dark" || (mode === "system" && !!prefersDark?.matches);
   root.dataset.mode = dark ? "dark" : "light";
 }
 
 // A device that switches between light and dark by itself is followed as it does.
 prefersDark?.addEventListener("change", () => {
-  if (look.theme === "finance-system") applyTheme();
+  if (look.theme.endsWith("-system")) applyTheme();
 });
 
 export function setTheme(theme: Theme) {
