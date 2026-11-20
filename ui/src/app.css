@@ -29,6 +29,28 @@
   --pill-amber: #fbbf24;
   --pill-red: #f87171;
 
+  /* What panels sit on, and the colours that follow from the ones above.
+     Every style defines its own; these are Terminal's, and the fallback for
+     a style or a colour theme that leaves one out. */
+  --surface: rgba(var(--ink), 0.05);
+  --hover: var(--raised-strong);
+  --on-accent: #0b0b0b;
+  --accent-strong: color-mix(in srgb, var(--text) 18%, var(--accent));
+  --tint-accent: color-mix(in srgb, var(--accent) 16%, transparent);
+  --tint-positive: color-mix(in srgb, var(--positive) 16%, transparent);
+  --tint-negative: color-mix(in srgb, var(--negative) 16%, transparent);
+  --hover-accent: color-mix(in srgb, var(--accent) 8%, transparent);
+  --hover-accent-edge: color-mix(in srgb, var(--accent) 35%, var(--hairline));
+  --backdrop: rgba(0, 0, 0, 0.6);
+  --warn-tint: color-mix(in srgb, var(--warn) 12%, transparent);
+  --warn-edge: color-mix(in srgb, var(--warn) 40%, transparent);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23edece8' stroke-opacity='.55' stroke-width='1.5'/%3E%3C/svg%3E");
+
+  /* Depth: the colour shadows are cast in and the light that catches a top
+     edge. theme-depth.css says how far each thing stands off the page. */
+  --shadow-rgb: 0, 0, 0;
+  --edge-rgb: 255, 255, 255;
+
   color-scheme: dark;
   /* Monospace throughout. It is most of why the plugin reads the way it
      does: every column of figures lines up without a table. */
@@ -37,6 +59,34 @@
   font-size: 13px;
   line-height: 1.45;
   color: var(--text);
+}
+
+/* Terminal in daylight: warm paper and dark ink, the accents a shade deeper so
+   they read on it. Everything mixed from the ink follows by itself. */
+:root[data-theme="terminal"][data-mode="light"] {
+  --ground: 246, 245, 241;
+  --ink: 28, 28, 30;
+  --control: #ffffff;
+  --menu: #fbfaf7;
+  --surface: rgba(255, 255, 255, 0.72);
+
+  --accent: #3b5bdb;
+  --positive: #0f8a5f;
+  --negative: #d03b3b;
+  --warn: #b7791f;
+
+  --pill-blue: #3b5bdb;
+  --pill-violet: #7048e8;
+  --pill-green: #0f8a5f;
+  --pill-amber: #b7791f;
+  --pill-red: #d03b3b;
+
+  --on-accent: #ffffff;
+  --backdrop: rgba(28, 28, 30, 0.35);
+  --shadow-rgb: 60, 50, 30;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%231c1c1e' stroke-opacity='.55' stroke-width='1.5'/%3E%3C/svg%3E");
+
+  color-scheme: light;
 }
 
 html,
@@ -117,7 +167,7 @@ textarea {
 select {
   appearance: none;
   background-color: var(--control);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23edece8' stroke-opacity='.55' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-image: var(--chevron);
   background-repeat: no-repeat;
   background-position: right 0.55rem center;
   padding-right: 1.6rem;
@@ -186,7 +236,7 @@ input::placeholder {
   border: 1px solid var(--hairline);
   border-radius: 0.5rem;
   padding: 0.7rem 0.9rem;
-  background: var(--raised);
+  background: var(--surface);
 }
 
 .tile-label {
@@ -279,7 +329,7 @@ input::placeholder {
   border: 1px solid var(--hairline);
   border-radius: 0.5rem;
   padding: 0.6rem 0.75rem;
-  background: var(--raised);
+  background: var(--surface);
   display: grid;
   /* A card never grows past its column; long content wraps or truncates. */
   grid-template-columns: minmax(0, 1fr);
@@ -428,7 +478,7 @@ input::placeholder {
   border-radius: 0.5rem;
   padding: 0.8rem;
   margin: 0.6rem 0;
-  background: var(--raised);
+  background: var(--surface);
   display: grid;
   gap: 0.45rem;
 }
@@ -445,7 +495,7 @@ input::placeholder {
 }
 
 .modal::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--backdrop);
 }
 
 .modal.wide {
@@ -526,8 +576,8 @@ input::placeholder {
 }
 
 .warn-box {
-  background: color-mix(in srgb, var(--warn) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: var(--warn-tint);
+  border: 1px solid var(--warn-edge);
   border-radius: 0.3rem;
   padding: 0.4rem 0.6rem;
   font-size: 0.78rem;

@@ -605,6 +605,8 @@ export interface LedgerView {
   goalTotals: GoalTotalsView;
   templates: TemplateView[];
   accountOrder: string[];
+  /** Colour themes made for this ledger; which one is worn is chosen per device. */
+  themes: ColorTheme[];
   paydays: PaydayView[];
   members: string[];
   budgetTypes: string[];
@@ -665,7 +667,20 @@ export type Op =
   | { op: "type-add"; list: "budget" | "investment"; name: string }
   | { op: "type-delete"; list: "budget" | "investment"; name: string }
   | { op: "dashboard-set"; dashboard: { v: 1; widgets: Widget[] } }
-  | { op: "account-order-set"; order: string[] };
+  | { op: "account-order-set"; order: string[] }
+  | { op: "theme-set"; theme: ColorTheme }
+  | { op: "theme-delete"; id: string };
+
+/** Token name to hex colour, for one mode. A token left out keeps the style's own. */
+export type Palette = Record<string, string>;
+
+/** A colour theme as stored in the ledger. An empty id saves it as new. */
+export interface ColorTheme {
+  id: string;
+  name: string;
+  light: Palette;
+  dark: Palette;
+}
 
 export type RecordKind =
   | "account"

@@ -1,5 +1,22 @@
 <script lang="ts">
-  import { look, setTheme, type Theme } from "./theme.svelte";
+  import {
+    DEPTHS,
+    MODES,
+    STYLES,
+    look,
+    readThemeFile,
+    setColors,
+    setCustomThemes,
+    setDepth,
+    setMode,
+    setStyle,
+    styleColors,
+    themeFile,
+    type Style,
+  } from "./theme.svelte";
+  import ThemeEditor from "./ThemeEditor.svelte";
+  import Modal from "./Modal.svelte";
+  import { ledger as ledgerApi, type ColorTheme } from "./ledger";
   import PriceKey from "./PriceKey.svelte";
   import BankPanel from "./BankPanel.svelte";
   import SnapshotImport from "./SnapshotImport.svelte";
@@ -42,6 +59,90 @@
 
   /// A refusal that can be overridden asks once, then again with force.
   let pendingPromotion = $state<{ id: string; why: string } | null>(null);
+
+  // ------------------------------------------------------ colour themes
+
+  let editingTheme = $state<ColorTheme | null>(null);
+  let importing = $state(false);
+  let importText = $state("");
+  let confirmDelete = $state(false);
+  let themeBusy = $state(false);
+  let themeNote = $state("");
+  let themeError = $state("");
+  const activeTheme = $derived(look.custom.find((t) => t.id === look.colors) ?? null);
+
+  /** A new theme starts as the colours on screen now, in both modes. */
+  function newTheme() {
+    themeNote = themeError = "";
+    const from = activeTheme;
+    editingTheme = {
+      id: "",
+      name: from ? `${from.name} copy` : "",
+      light: from ? { ...styleColors(false), ...from.light } : styleColors(false),
+      dark: from ? { ...styleColors(true), ...from.dark } : styleColors(true),
+    };
+  }
+
+  async function exportTheme() {
+    if (!activeTheme) return;
+    themeNote = themeError = "";
+    const text = themeFile(activeTheme);
+    // A file to pass on, and the same text on the clipboard for a message.
+    try {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+      link.download = `${activeTheme.name.replace(/[^\w -]+/g, "").trim() || "theme"}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch {
+      // The clipboard below still has it.
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      themeNote = "Saved as a file in Downloads, and copied to the clipboard.";
+    } catch {
+      themeNote = "Saved as a file in Downloads.";
+    }
+  }
+
+  async function importTheme(text: string) {
+    themeBusy = true;
+    themeError = themeNote = "";
+    try {
+      const theme = readThemeFile(text);
+      const before = new Set(look.custom.map((t) => t.id));
+      await ledgerApi.apply({ op: "theme-set", theme });
+      const view = await ledgerApi.read();
+      setCustomThemes(view.themes);
+      const added = view.themes.find((t) => !before.has(t.id));
+      if (added) setColors(added.id);
+      importing = false;
+      importText = "";
+      themeNote = `Imported “${theme.name}”.`;
+    } catch (e) {
+      themeError = e instanceof Error ? e.message : String(e);
+    } finally {
+      themeBusy = false;
+    }
+  }
+
+  async function deleteTheme() {
+    if (!activeTheme) return;
+    themeBusy = true;
+    themeError = themeNote = "";
+    try {
+      const name = activeTheme.name;
+      await ledgerApi.apply({ op: "theme-delete", id: activeTheme.id });
+      setColors("");
+      setCustomThemes((await ledgerApi.read()).themes);
+      themeNote = `Deleted “${name}”.`;
+    } catch (e) {
+      themeError = String(e);
+    } finally {
+      themeBusy = false;
+      confirmDelete = false;
+    }
+  }
 
   async function run(what: string, action: () => Promise<Setup>) {
     busy = what;
@@ -355,25 +456,106 @@
         <div class="panel settings-card">
           <div class="setting">
             <div class="setting-text">
-              <label class="setting-name" for="look">Look</label>
-              <p class="note">Kept on this device only.</p>
+              <label class="setting-name" for="style">Style</label>
+              <p class="note">The shape of things: type, spacing, how panels are drawn.</p>
             </div>
             <select
-              id="look"
+              id="style"
               class="setting-control"
-              value={look.theme}
-              onchange={(e) => setTheme(e.currentTarget.value as Theme)}
+              value={look.style}
+              onchange={(e) => setStyle(e.currentTarget.value as Style)}
             >
-              <option value="terminal">Terminal</option>
-              <option value="finance-light">Finance, light</option>
-              <option value="finance-dark">Finance, dark</option>
-              <option value="finance-system">Finance, as the device is set</option>
-              <option value="trading-dark">Trading, dark</option>
-              <option value="trading-light">Trading, light</option>
-              <option value="trading-system">Trading, as the device is set</option>
+              {#each STYLES as [value, label] (value)}<option {value}>{label}</option>{/each}
             </select>
           </div>
-          {#if look.theme === "terminal"}
+          <div class="setting">
+            <div class="setting-text">
+              <span class="setting-name" id="mode-label">Light or dark</span>
+              <p class="note">
+                Device follows this computer's own setting. The sun or moon beside Sync
+                switches it in one click.
+              </p>
+            </div>
+            <div class="setting-control toggle segmented" role="group" aria-labelledby="mode-label">
+              {#each MODES as [value, label] (value)}
+                <button class:on={look.mode === value} onclick={() => setMode(value)}>{label}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <span class="setting-name" id="depth-label">Depth</span>
+              <p class="note">How far panels, menus and pop-ups stand off the page.</p>
+            </div>
+            <div class="setting-control toggle segmented" role="group" aria-labelledby="depth-label">
+              {#each DEPTHS as [value, label] (value)}
+                <button class:on={look.depth === value} onclick={() => setDepth(value)}>{label}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="setting">
+            <div class="setting-text">
+              <label class="setting-name" for="colors">Colours</label>
+              <p class="note">
+                Themes you make are kept in the ledger, so every computer has them; which one
+                this computer wears is its own choice. A theme fits every style.
+              </p>
+            </div>
+            <select
+              id="colors"
+              class="setting-control"
+              value={activeTheme ? activeTheme.id : ""}
+              onchange={(e) => {
+                confirmDelete = false;
+                setColors(e.currentTarget.value);
+              }}
+            >
+              <option value="">The style's own</option>
+              {#if look.custom.length}
+                <optgroup label="Your themes">
+                  {#each look.custom as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+                </optgroup>
+              {/if}
+            </select>
+          </div>
+          <div class="theme-actions">
+            <button onclick={newTheme} disabled={themeBusy}>
+              {activeTheme ? "Copy as new" : "New theme"}
+            </button>
+            <button
+              onclick={() => {
+                themeNote = themeError = "";
+                editingTheme = activeTheme;
+              }}
+              disabled={!activeTheme || themeBusy}
+            >
+              Edit
+            </button>
+            <button
+              class="bare"
+              onclick={() => {
+                themeError = "";
+                importing = true;
+              }}
+              disabled={themeBusy}>Import…</button
+            >
+            <button class="bare" onclick={exportTheme} disabled={!activeTheme}>Export</button>
+            {#if activeTheme}
+              {#if confirmDelete}
+                <button class="bare danger" onclick={deleteTheme} disabled={themeBusy}>
+                  Really delete “{activeTheme.name}”?
+                </button>
+                <button class="bare" onclick={() => (confirmDelete = false)}>Keep it</button>
+              {:else}
+                <button class="bare danger" onclick={() => (confirmDelete = true)} disabled={themeBusy}>
+                  Delete
+                </button>
+              {/if}
+            {/if}
+          </div>
+          {#if themeNote}<p class="ok theme-msg">{themeNote}</p>{/if}
+          {#if themeError && !importing}<p class="error theme-msg">{themeError}</p>{/if}
+          {#if look.style === "terminal"}
             <div class="setting">
               <div class="setting-text">
                 <label class="setting-name" for="opacity">Window opacity</label>
@@ -405,6 +587,45 @@
             </div>
           {/if}
         </div>
+        {#if editingTheme}
+          <ThemeEditor
+            theme={editingTheme}
+            onclose={() => (editingTheme = null)}
+            onsaved={(id) => {
+              editingTheme = null;
+              if (id) setColors(id);
+              themeNote = "Theme saved.";
+            }}
+          />
+        {/if}
+        {#if importing}
+          <Modal onclose={() => (importing = false)}>
+            <form
+              class="panel"
+              onsubmit={(e) => {
+                e.preventDefault();
+                importTheme(importText);
+              }}
+            >
+              <h3>Import a theme</h3>
+              <p class="note">Choose a theme file someone shared, or paste what is in it.</p>
+              <input
+                type="file"
+                accept=".json,application/json"
+                onchange={async (e) => {
+                  const file = e.currentTarget.files?.[0];
+                  if (file) importText = await file.text();
+                }}
+              />
+              <textarea rows="8" bind:value={importText} placeholder={'{ "homeLedgerTheme": 1, "name": … }'}></textarea>
+              {#if themeError}<p class="error">{themeError}</p>{/if}
+              <div class="actions">
+                <button type="submit" disabled={!importText.trim() || themeBusy}>Import</button>
+                <button type="button" onclick={() => (importing = false)}>Cancel</button>
+              </div>
+            </form>
+          </Modal>
+        {/if}
       {:else if section === "privacy"}
         <div class="section-head"><h2>Privacy</h2></div>
         <div class="panel settings-card">
@@ -543,6 +764,23 @@
     font-size: 0.85rem;
     min-width: 2.5rem;
     text-align: right;
+  }
+  .segmented {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .segmented button {
+    flex: 1;
+  }
+  .theme-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0 0 0.9rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .theme-msg {
+    margin: 0.5rem 0 0;
   }
   .reshuffle {
     justify-self: start;

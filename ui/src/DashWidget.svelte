@@ -265,7 +265,7 @@
 
 <style>
   .widget {
-    background: var(--raised);
+    background: var(--surface);
     border: 1px solid var(--hairline);
     border-radius: 0.6rem;
     padding: 0.85rem 0.95rem;

@@ -9,6 +9,7 @@ pub mod lineage;
 pub mod money;
 pub mod records;
 pub mod text;
+pub mod themes;
 
 pub use document::{Ledger, SCHEMA_VERSION};
 pub use lineage::{Lineage, Relation};

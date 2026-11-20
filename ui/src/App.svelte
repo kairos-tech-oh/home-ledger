@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { look } from "./theme.svelte";
+  import { untrack } from "svelte";
+  import { look, setCustomThemes, toggleDark } from "./theme.svelte";
   import { api, type Overview, type StoreStatus, type SyncState } from "./lib";
   import Storage from "./Storage.svelte";
   import Accounts from "./Accounts.svelte";
@@ -86,9 +87,17 @@
   // painted on body and the window behind it is transparent.
   $effect(() => {
     if (setup) {
-      const alpha = look.theme === "terminal" ? setup.opacity : 1;
+      const alpha = look.style === "terminal" ? setup.opacity : 1;
       document.documentElement.style.setProperty("--surface-alpha", String(alpha));
     }
+  });
+
+  // Colour themes live in the ledger, so they arrive with every read. Written
+  // untracked: wearing one reads the look, which must not re-run this.
+  $effect(() => {
+    // Only from a real read: before one, the device's copy of the worn theme stands.
+    const themes = view?.themes;
+    if (themes) untrack(() => setCustomThemes(themes));
   });
 
   // The ledger is encrypted and this machine does not hold the key yet.
@@ -220,6 +229,18 @@
   >
     <span>{syncLabel(sync)}</span>
     <button onclick={flush} disabled={busy}>Sync</button>
+    <button
+      class="bare mode-switch"
+      onclick={toggleDark}
+      title={look.dark ? "Switch to light" : "Switch to dark"}
+      aria-label={look.dark ? "Switch to light" : "Switch to dark"}
+    >
+      {#if look.dark}
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor" /><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1" /></g></svg>
+      {:else}
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M13.6 10.2A6 6 0 0 1 5.8 2.4a6 6 0 1 0 7.8 7.8z" fill="currentColor" /></svg>
+      {/if}
+    </button>
   </div>
 </header>
 
@@ -362,5 +383,10 @@
     font-size: 0.72rem;
     color: var(--dim);
     white-space: nowrap;
+  }
+  .mode-switch {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.35rem;
   }
 </style>

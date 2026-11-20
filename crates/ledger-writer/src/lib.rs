@@ -17,6 +17,7 @@ mod layout;
 pub mod reconcile;
 mod retirement;
 mod templates;
+mod themes;
 mod types;
 
 pub use types::TypeList;
@@ -245,6 +246,13 @@ pub enum Op {
         #[serde(default)]
         order: Vec<String>,
     },
+    /// Add a colour theme, or replace the one with the same id.
+    ThemeSet {
+        theme: Value,
+    },
+    ThemeDelete {
+        id: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -345,6 +353,8 @@ impl Writer {
             Op::TypeDelete { list, name } => self.type_delete(ledger, *list, name)?,
             Op::DashboardSet { dashboard } => self.dashboard_set(ledger, dashboard)?,
             Op::AccountOrderSet { order } => self.account_order_set(ledger, order)?,
+            Op::ThemeSet { theme } => self.theme_set(ledger, theme)?,
+            Op::ThemeDelete { id } => self.theme_delete(ledger, id)?,
         };
         // Whatever moved a bucket moved its account with it, and the history
         // says so.
