@@ -1568,7 +1568,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "clap",
@@ -1598,7 +1598,7 @@ dependencies = [
 
 [[package]]
 name = "home-ledger"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "async-trait",
  "ledger-app",
@@ -2169,7 +2169,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "ledger-app"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "async-trait",
  "ledger-config",
@@ -2192,7 +2192,7 @@ dependencies = [
 
 [[package]]
 name = "ledger-config"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "directories",
  "keyring",
@@ -2207,7 +2207,7 @@ dependencies = [
 
 [[package]]
 name = "ledger-domain"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "rust_decimal",
  "rust_decimal_macros",
@@ -2219,7 +2219,7 @@ dependencies = [
 
 [[package]]
 name = "ledger-math"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ledger-domain",
  "rust_decimal",
@@ -2230,7 +2230,7 @@ dependencies = [
 
 [[package]]
 name = "ledger-store"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "argon2",
  "async-trait",
@@ -2251,7 +2251,7 @@ dependencies = [
 
 [[package]]
 name = "ledger-writer"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ledger-domain",
  "ledger-math",

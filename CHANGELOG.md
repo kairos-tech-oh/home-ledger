@@ -10,6 +10,8 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-21
+
 ### Added
 - **Depth.** Panels, cards and widgets now stand off the page with soft
   shadows and a lit top edge. Menus and pop-ups float above them, fields sit
