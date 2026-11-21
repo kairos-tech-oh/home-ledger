@@ -1,0 +1,147 @@
+/* Depth: how far things stand off the page, as one layer over every style.
+
+   Four levels, from the page up: the page itself; panels, cards and tiles
+   (elev-1), lifting a little when the pointer is over them (elev-2); and what
+   opens over everything, menus and pop-ups (elev-3). Fields sit below the
+   panel they are on, recessed. Each raised thing also catches a line of light
+   on its top edge, which is most of what gives a dark theme depth, since a
+   shadow barely shows on a dark ground.
+
+   It is all in tokens, so a style or a colour theme changes the colours
+   (--shadow-rgb, --edge-rgb) and data-depth on the root changes the amount:
+   flat turns this layer off, soft is the default, deep is more of the same.
+   Loaded after the styles, so it adds to their rules rather than fighting
+   them; no rule here sets a colour, a border or a size. */
+
+:root {
+  --depth: 1;
+  --shadow-a: 0.34;
+  --edge-a: 0.055;
+}
+
+:root[data-mode="light"] {
+  --shadow-rgb: 32, 38, 52;
+  --shadow-a: 0.085;
+  --edge-a: 0.75;
+}
+
+:root[data-depth="deep"] {
+  --depth: 1.75;
+}
+
+:root[data-depth="flat"] {
+  --depth: 0;
+}
+
+:root {
+  --s: calc(var(--shadow-a) * var(--depth));
+  --elev-1: 0 1px 2px rgba(var(--shadow-rgb), var(--s)),
+    0 2px 6px -1px rgba(var(--shadow-rgb), calc(var(--s) * 0.7));
+  --elev-2: 0 2px 4px rgba(var(--shadow-rgb), calc(var(--s) * 0.8)),
+    0 8px 20px -4px rgba(var(--shadow-rgb), var(--s));
+  --elev-3: 0 6px 14px -4px rgba(var(--shadow-rgb), calc(var(--s) * 1.1)),
+    0 22px 48px -10px rgba(var(--shadow-rgb), calc(var(--s) * 1.4));
+  --edge: inset 0 1px 0 rgba(var(--edge-rgb), calc(var(--edge-a) * var(--depth)));
+  --recess: inset 0 1px 2px rgba(var(--shadow-rgb), calc(var(--s) * 0.55));
+  /* A soft wash of light from the top, as though lit from above. */
+  --sheen: linear-gradient(
+    180deg,
+    rgba(var(--edge-rgb), calc(var(--edge-a) * var(--depth) * 0.45)),
+    transparent 45%
+  );
+}
+
+/* ------------------------------------------------------------ panels */
+
+:root:not([data-depth="flat"]) :is(.tile, .card, .panel, .widget) {
+  box-shadow: var(--edge), var(--elev-1);
+  background-image: var(--sheen);
+  transition: box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+:root:not([data-depth="flat"]) :is(.tile, .card, .widget):hover {
+  box-shadow: var(--edge), var(--elev-2);
+}
+
+:root[data-depth="deep"] :is(.tile, .card, .widget):hover {
+  transform: translateY(-1px);
+}
+
+/* A panel inside a pop-up is part of the pop-up, not a layer above it. */
+:root:not([data-depth="flat"]) .modal .panel {
+  box-shadow: none;
+  background-image: none;
+}
+
+/* Group headings are a step up from the rows under them. */
+:root:not([data-depth="flat"]) .group-head {
+  box-shadow: var(--edge);
+}
+
+/* ---------------------------------------------------------- overlays */
+
+:root:not([data-depth="flat"]) .modal {
+  box-shadow: var(--edge), var(--elev-3);
+}
+
+:root:not([data-depth="flat"]) nav .menu {
+  box-shadow: var(--edge), var(--elev-3);
+}
+
+/* The bar of tabs is a layer over the page, which scrolls under it. */
+:root:not([data-depth="flat"]) .nav-row {
+  box-shadow: 0 6px 14px -10px rgba(var(--shadow-rgb), calc(var(--s) * 1.6));
+  position: relative;
+  z-index: 5;
+}
+
+/* ---------------------------------------------------------- controls */
+
+:root:not([data-depth="flat"]) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]), select, textarea) {
+  box-shadow: var(--recess);
+}
+
+:root:not([data-depth="flat"]) button:not(.bare, .group-head, .modal-close) {
+  box-shadow: var(--edge), 0 1px 1px rgba(var(--shadow-rgb), calc(var(--s) * 0.6));
+  transition: box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+:root:not([data-depth="flat"]) button:not(.bare, .group-head, .modal-close):not(:disabled):active {
+  box-shadow: var(--recess);
+}
+
+/* The one filled button on a form stands furthest off it. */
+:root:not([data-depth="flat"]) button[type="submit"] {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, calc(0.14 * var(--depth))), transparent);
+  box-shadow: var(--edge), var(--elev-1);
+}
+
+/* A row of choices is a track, the chosen one raised out of it. */
+:root:not([data-depth="flat"]) .toggle button {
+  box-shadow: none;
+}
+
+:root:not([data-depth="flat"]) .toggle button.on {
+  box-shadow: var(--edge), var(--elev-1);
+}
+
+/* Tabs are part of their bar. */
+:root:not([data-depth="flat"]) nav .group,
+:root:not([data-depth="flat"]) nav .menu button {
+  box-shadow: none;
+}
+
+:root:not([data-depth="flat"]) nav .group.on {
+  box-shadow: var(--edge), var(--elev-1);
+}
+
+:root[data-theme="trading"]:not([data-depth="flat"]) nav .group.on {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root :is(.tile, .card, .widget, button) {
+    transition: none !important;
+    transform: none !important;
+  }
+}

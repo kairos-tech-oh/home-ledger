@@ -360,6 +360,8 @@ pub struct LedgerView {
     pub paydays: Vec<PaydayView>,
     /// The Accounts page's section order as arranged; empty for the default.
     pub account_order: Vec<String>,
+    /// Colour themes made for this ledger, as stored.
+    pub themes: Vec<ledger_domain::themes::Theme>,
     /// Saved budgets, as stored: oldest first.
     pub templates: Vec<TemplateView>,
     /// Every type the budget uses, in the order they are filed under.
@@ -391,6 +393,7 @@ pub async fn ledger(state: &AppState) -> Answer<LedgerView> {
         goal_totals: goal_totals_of(&doc),
         templates: templates_of(&doc),
         account_order: doc.account_order(),
+        themes: doc.themes(),
         paydays: ledger_math::payday::paydays(&doc)
             .into_iter()
             .map(|day| PaydayView {

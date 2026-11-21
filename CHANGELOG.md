@@ -10,6 +10,23 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- **Depth.** Panels, cards and widgets now stand off the page with soft
+  shadows and a lit top edge. Menus and pop-ups float above them, fields sit
+  recessed, and the chosen tab or toggle is raised. It works in every style,
+  light and dark. Settings → Appearance → Depth picks Flat, Soft (the default)
+  or Deep.
+- **Colour themes** you make yourself: a light and a dark set of colours worn
+  over any style, made in a live editor with colour pickers. They are kept in
+  the ledger, so every computer has them, and can be exported as a small file
+  and imported by someone else. See [docs/THEMES.md](docs/THEMES.md).
+- A one-click light/dark switch beside Sync. Terminal now has a light mode too.
+
+### Changed
+- Appearance settings are split into Style, Light or dark, Depth and Colours,
+  instead of one list of looks. The look each computer already had carries
+  over.
+
 ## [0.4.0] - 2026-11-20
 
 ### Added
