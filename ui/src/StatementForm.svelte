@@ -39,17 +39,51 @@
   let adjustAccounts = $state(was?.adjustAccounts ?? true);
   let spendSourceId = $state(was?.spendSourceId ?? "");
   let notes = $state(was?.notes ?? "");
-  let lines = $state(
-    (was?.lines ?? []).map((l) => ({
-      id: l.id,
-      label: l.label,
-      member: l.member,
-      spentOn: l.spentOn,
-      amount: l.amount,
-      bucketId: l.bucketId,
-      notes: l.notes,
-    })),
-  );
+  type Part = { id: string; bucketId: string; amount: string; rest: boolean };
+  type Line = {
+    id: string;
+    label: string;
+    member: string;
+    spentOn: string;
+    amount: string;
+    bucketId: string;
+    notes: string;
+    splitGroup: string;
+    parts: Part[];
+  };
+
+  function load(): Line[] {
+    const out: Line[] = [];
+    for (const l of was?.lines ?? []) {
+      const part = { id: l.id, bucketId: l.bucketId, amount: l.amount, rest: false };
+      const group = l.splitGroup ? out.find((o) => o.splitGroup === l.splitGroup) : undefined;
+      if (group) {
+        group.parts.push(part);
+        continue;
+      }
+      out.push({
+        id: l.id,
+        label: l.label,
+        member: l.member,
+        spentOn: l.spentOn,
+        amount: l.splitGroup ? l.splitTotal : l.amount,
+        bucketId: l.bucketId,
+        notes: l.notes,
+        splitGroup: l.splitGroup,
+        parts: l.splitGroup ? [part] : [],
+      });
+    }
+    for (const line of out) {
+      if (line.parts.length > 1) line.parts[line.parts.length - 1].rest = true;
+      else if (line.parts.length === 1) {
+        line.parts = [];
+        line.splitGroup = "";
+      }
+    }
+    return out;
+  }
+
+  let lines = $state(load());
 
   // In whole cents, so the hint never shows a float crumb. The writer decides.
   const cents = (v: string) => Math.round((Number(v) || 0) * 100);
@@ -61,7 +95,68 @@
   }
 
   function addLine() {
-    lines.push({ id: "", label: "", member: "", spentOn: "", amount: "", bucketId: "", notes: "" });
+    lines.push({
+      id: "",
+      label: "",
+      member: "",
+      spentOn: "",
+      amount: "",
+      bucketId: "",
+      notes: "",
+      splitGroup: "",
+      parts: [],
+    });
+  }
+
+  const newId = () => crypto.randomUUID().replaceAll("-", "");
+
+  function split(line: Line) {
+    line.splitGroup = line.id || newId();
+    line.parts = [
+      { id: line.id, bucketId: line.bucketId, amount: "", rest: false },
+      { id: "", bucketId: "", amount: "", rest: true },
+    ];
+  }
+
+  function addPart(line: Line) {
+    line.parts.splice(line.parts.length - 1, 0, { id: "", bucketId: "", amount: "", rest: false });
+  }
+
+  function removePart(line: Line, j: number) {
+    const wasRest = line.parts[j].rest;
+    line.parts.splice(j, 1);
+    if (line.parts.length === 1) {
+      line.bucketId = line.parts[0].bucketId;
+      line.id = line.id || line.parts[0].id;
+      line.parts = [];
+      line.splitGroup = "";
+    } else if (wasRest) {
+      line.parts[line.parts.length - 1].rest = true;
+    }
+  }
+
+  const rest = (line: Line) =>
+    cents(line.amount) - line.parts.reduce((t, p) => t + (p.rest ? 0 : cents(p.amount)), 0);
+
+  function flat(line: Line) {
+    const shared = {
+      label: line.label.trim(),
+      member: line.member,
+      spentOn: line.spentOn,
+      notes: line.notes,
+    };
+    if (line.parts.length < 2) {
+      return [{ ...shared, id: line.id, amount: line.amount.trim(), bucketId: line.bucketId }];
+    }
+    return line.parts.map((p) => ({
+      ...shared,
+      id: p.id,
+      bucketId: p.bucketId,
+      amount: p.rest ? "0" : p.amount.trim(),
+      splitGroup: line.splitGroup,
+      splitTotal: line.amount.trim(),
+      splitRest: p.rest,
+    }));
   }
 
   function submit() {
@@ -73,7 +168,7 @@
       adjustAccounts,
       spendSourceId,
       notes: notes.trim(),
-      lines: lines.map((l) => ({ ...l, label: l.label.trim(), amount: l.amount.trim() })),
+      lines: lines.flatMap(flat),
     });
   }
 </script>
@@ -118,6 +213,7 @@
       <span>Who spent it</span>
       <span>Date</span>
       <span></span>
+      <span></span>
     </div>
   {/if}
   {#each lines as line, i (i)}
@@ -129,14 +225,25 @@
         title={line.label}
       />
       <input bind:value={line.amount} inputmode="decimal" placeholder="0.00" aria-label="Amount" />
-      <select bind:value={line.bucketId} aria-label="Came out of">
-        <option value="">Everyday spending</option>
-        {#each buckets as bucket (bucket.id)}
-          <option value={bucket.id}>{bucket.name} · {money(bucket.cash)}</option>
-        {/each}
-      </select>
+      {#if line.parts.length > 1}
+        <span class="split-note muted">Split across {line.parts.length} buckets</span>
+      {:else}
+        <select bind:value={line.bucketId} aria-label="Came out of">
+          <option value="">Everyday spending</option>
+          {#each buckets as bucket (bucket.id)}
+            <option value={bucket.id}>{bucket.name} · {money(bucket.cash)}</option>
+          {/each}
+        </select>
+      {/if}
       <MemberPicker bind:value={line.member} {members} />
       <input type="date" bind:value={line.spentOn} aria-label="Date" />
+      {#if line.parts.length > 1}
+        <button type="button" class="bare" title="Add a bucket" aria-label="Add a bucket"
+          onclick={() => addPart(line)}>+</button>
+      {:else}
+        <button type="button" class="bare" title="Split across buckets"
+          aria-label="Split across buckets" onclick={() => split(line)}>⑂</button>
+      {/if}
       <button
         type="button"
         class="bare"
@@ -145,6 +252,30 @@
         onclick={() => lines.splice(i, 1)}>×</button
       >
     </div>
+    {#each line.parts as part, j (j)}
+      <div class="line part">
+        <span class="part-mark muted" aria-hidden="true">↳</span>
+        {#if part.rest}
+          <span class="rest muted" class:neg={rest(line) <= 0} title="Worked out when saved">
+            rest · {money((rest(line) / 100).toFixed(2))}
+          </span>
+        {:else}
+          <input bind:value={part.amount} inputmode="decimal" placeholder="0.00"
+            aria-label="Amount from this bucket" />
+        {/if}
+        <select bind:value={part.bucketId} aria-label="Came out of">
+          <option value="">Everyday spending</option>
+          {#each buckets as bucket (bucket.id)}
+            <option value={bucket.id}>{bucket.name} · {money(bucket.cash)}</option>
+          {/each}
+        </select>
+        <span></span>
+        <span></span>
+        <span></span>
+        <button type="button" class="bare" title="Remove this part" aria-label="Remove this part"
+          onclick={() => removePart(line, j)}>×</button>
+      </div>
+    {/each}
   {/each}
 
 
@@ -187,7 +318,7 @@
      row: the name gets what is left after the fixed columns. */
   .line {
     display: grid;
-    grid-template-columns: minmax(10rem, 1fr) 7rem minmax(10rem, 14rem) 9rem 9.5rem 1.6rem;
+    grid-template-columns: minmax(10rem, 1fr) 7rem minmax(10rem, 14rem) 9rem 9.5rem 1.6rem 1.6rem;
     gap: 0.4rem;
     align-items: center;
   }
@@ -197,15 +328,30 @@
   .line-labels {
     font-size: 0.68rem;
   }
+  .part .part-mark {
+    text-align: right;
+    padding-right: 0.3rem;
+  }
+  .split-note,
+  .rest {
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* A narrow window: the name takes a row of its own, the rest share one. */
   @media (max-width: 60rem) {
     .line {
-      grid-template-columns: 7rem minmax(9rem, 1fr) 8rem 9rem 1.6rem;
+      grid-template-columns: 7rem minmax(9rem, 1fr) 8rem 9rem 1.6rem 1.6rem;
       padding-bottom: 0.4rem;
       border-bottom: 1px solid var(--hairline);
     }
     .line > :first-child {
       grid-column: 1 / -1;
+    }
+    .line.part > :first-child {
+      display: none;
     }
     .line-labels {
       display: none;

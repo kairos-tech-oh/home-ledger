@@ -10,6 +10,21 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- **Split a charge across buckets.** In a statement, ⑂ beside a charge divides it
+  between buckets: a Costco run can come partly out of Groceries, partly out of
+  Gifts, and the rest out of everyday spending. Each part says how much and from
+  where, and the last takes whatever is left. Settling draws each part from its
+  own bucket, so a split never has to wait for one bucket to run dry. The parts
+  are stored as ordinary charges sharing a `splitGroup`, so totals and older
+  copies of the app read them correctly, and a bank charge that was split is
+  still never imported twice.
+
+### Fixed
+- In Import charges, the dropdowns no longer spill over the labels and the
+  "keep the bank's category" checkbox beside them; each setting's label now
+  sits above it.
+
 ## [0.4.1] - 2026-11-21
 
 ### Added

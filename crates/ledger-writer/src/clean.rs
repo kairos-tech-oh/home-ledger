@@ -353,7 +353,93 @@ pub(crate) fn recon_line(mut record: ReconLine) -> Option<ReconLine> {
     record.notes = plain(&record.notes, LINE_NOTES_MAX);
     record.bank_ref = bank_ref(&record.bank_ref);
     record.bank_text = plain(&record.bank_text, BANK_TEXT_MAX);
+    record.split_group = valid_id(&record.split_group);
+    record.split_total = None;
+    record.split_rest = false;
     Some(record)
+}
+
+fn splits(lines: &mut [ReconLine], stored: bool) -> Result<(), WriteError> {
+    for line in lines.iter_mut() {
+        line.split_group = valid_id(&line.split_group);
+    }
+    let mut groups: Vec<String> = Vec::new();
+    for line in lines.iter() {
+        if !line.split_group.is_empty() && !groups.contains(&line.split_group) {
+            groups.push(line.split_group.clone());
+        }
+    }
+    for group in groups {
+        let parts: Vec<usize> = (0..lines.len())
+            .filter(|&i| lines[i].split_group == group)
+            .collect();
+        match split_group(lines, &parts) {
+            Ok(()) => {}
+            Err(_) if stored => {
+                for &i in &parts {
+                    lines[i].split_group.clear();
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
+fn split_group(lines: &mut [ReconLine], parts: &[usize]) -> Result<(), WriteError> {
+    if parts.len() < 2 {
+        lines[parts[0]].split_group.clear();
+        return Ok(());
+    }
+    let rests: Vec<usize> = parts
+        .iter()
+        .copied()
+        .filter(|&i| lines[i].split_rest)
+        .collect();
+    if rests.len() > 1 {
+        return refuse("only one part of a split can take what is left");
+    }
+    let total = parts.iter().find_map(|&i| lines[i].split_total).map(cents);
+    let given: Money = parts
+        .iter()
+        .filter(|&&i| !lines[i].split_rest)
+        .map(|&i| cents(lines[i].amount))
+        .sum();
+    match (total, rests.first()) {
+        (Some(total), Some(&rest)) => lines[rest].amount = total - given,
+        (Some(total), None) if given != total => {
+            return refuse(format!(
+                "the parts of a split come to {given}, not the {total} charged"
+            ));
+        }
+        (None, Some(_)) => return refuse("a split needs the amount charged"),
+        _ => {}
+    }
+    let sum: Money = parts.iter().map(|&i| cents(lines[i].amount)).sum();
+    if sum.is_zero() {
+        return refuse("a split charge needs an amount");
+    }
+    for &i in parts {
+        let amount = cents(lines[i].amount);
+        if amount.is_zero() {
+            return refuse("each part of a split needs an amount; remove a part that has none");
+        }
+        if amount.is_negative() != sum.is_negative() {
+            return refuse("the parts of a split must all be charges or all be refunds");
+        }
+    }
+    let first = parts[0];
+    let (label, spent_on, member) = (
+        lines[first].label.clone(),
+        lines[first].spent_on.clone(),
+        lines[first].member.clone(),
+    );
+    for &i in parts {
+        lines[i].label = label.clone();
+        lines[i].spent_on = spent_on.clone();
+        lines[i].member = member.clone();
+    }
+    Ok(())
 }
 
 /// The bank's own description is longer than a label but still one line.
@@ -410,6 +496,7 @@ pub fn reconciliation(
     record.spend_source_id = valid_id(&record.spend_source_id);
     record.notes = plain(&record.notes, NOTES_MAX);
     record.lines.truncate(caps::RECON_LINES);
+    splits(&mut record.lines, stored)?;
     record.lines = std::mem::take(&mut record.lines)
         .into_iter()
         .filter_map(recon_line)

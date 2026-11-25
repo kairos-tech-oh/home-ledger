@@ -137,6 +137,8 @@ export interface ReconLineView {
   bucketId: string;
   bucketName: string;
   notes: string;
+  splitGroup: string;
+  splitTotal: string;
 }
 
 export interface ReconciliationView {
