@@ -274,6 +274,12 @@ impl AppState {
     /// not be saved, or the app fails to start next time and the person has to
     /// edit JSON to recover.
     pub async fn reconfigure(&self, config: Config) -> Result<(), SetupError> {
+        let base = self.config().await;
+        let mut config = match self.places.load_config() {
+            Ok(disk) if !disk.stores.is_empty() => Config::merged(&base, &config, &disk)?,
+            _ => config,
+        };
+        config.device = machine_name(&config.device).unwrap_or_else(device_name);
         let rebuilt = build_live(
             &config,
             &self.places,
@@ -389,6 +395,69 @@ mod tests {
         assert_eq!(machine_name("  Laptop  ").as_deref(), Some("Laptop"));
         let long = machine_name(&"x".repeat(200)).unwrap();
         assert_eq!(long.chars().count(), MACHINE_NAME_MAX);
+    }
+
+    async fn two_open_copies(dir: &std::path::Path) -> (AppState, AppState, Places) {
+        let places = Places {
+            config_file: dir.join("config.json"),
+            data_dir: dir.join("data"),
+        };
+        let open = || {
+            AppState::open(
+                places.clone(),
+                Arc::new(ledger_config::secrets::InMemory::default()),
+                false,
+                || None,
+            )
+            .unwrap()
+        };
+        let first = open();
+        let second = open();
+        (first, second, places)
+    }
+
+    #[tokio::test]
+    async fn a_rename_survives_another_open_copy_saving_a_setting() {
+        let dir = tempfile::tempdir().unwrap();
+        let (stale, fresh, places) = two_open_copies(dir.path()).await;
+        crate::storage::rename_device(&fresh, "Chris Laptop".into())
+            .await
+            .unwrap();
+        crate::storage::set_opacity(&stale, 0.8).await.unwrap();
+
+        let on_disk = places.load_config().unwrap();
+        assert_eq!(on_disk.device, "Chris Laptop");
+        assert_eq!(on_disk.opacity, 0.8);
+        let restarted = AppState::open(
+            places.clone(),
+            Arc::new(ledger_config::secrets::InMemory::default()),
+            false,
+            || None,
+        )
+        .unwrap();
+        let setup = crate::storage::setup(&restarted).await.unwrap();
+        assert_eq!(setup.device, "Chris Laptop");
+        assert!(!setup.device_is_default);
+    }
+
+    #[tokio::test]
+    async fn a_stale_copy_signs_with_the_new_name_once_it_saves() {
+        let dir = tempfile::tempdir().unwrap();
+        let (stale, fresh, _) = two_open_copies(dir.path()).await;
+        crate::storage::rename_device(&fresh, "Chris Laptop".into())
+            .await
+            .unwrap();
+        crate::storage::set_opacity(&stale, 0.8).await.unwrap();
+        assert_eq!(stale.config().await.device, "Chris Laptop");
+    }
+
+    #[tokio::test]
+    async fn a_setting_changed_in_both_copies_ends_as_the_last_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let (first, second, places) = two_open_copies(dir.path()).await;
+        crate::storage::set_opacity(&second, 0.7).await.unwrap();
+        crate::storage::set_opacity(&first, 0.9).await.unwrap();
+        assert_eq!(places.load_config().unwrap().opacity, 0.9);
     }
 
     #[test]

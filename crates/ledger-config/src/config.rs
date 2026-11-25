@@ -298,11 +298,83 @@ impl Config {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ConfigError> {
         serde_json::from_slice(bytes).map_err(|e| ConfigError::Corrupt(e.to_string()))
     }
+
+    pub fn merged(base: &Config, ours: &Config, theirs: &Config) -> Result<Config, ConfigError> {
+        let value =
+            |c: &Config| serde_json::to_value(c).map_err(|e| ConfigError::Corrupt(e.to_string()));
+        let (base, ours, theirs) = (value(base)?, value(ours)?, value(theirs)?);
+        let pick = |v: &serde_json::Value| v.as_object().cloned().unwrap_or_default();
+        let (base, ours) = (pick(&base), pick(&ours));
+        let mut out = pick(&theirs);
+        for key in base.keys().chain(ours.keys()) {
+            if ours.get(key) != base.get(key) {
+                match ours.get(key) {
+                    Some(v) => out.insert(key.clone(), v.clone()),
+                    None => out.remove(key),
+                };
+            }
+        }
+        serde_json::from_value(serde_json::Value::Object(out))
+            .map_err(|e| ConfigError::Corrupt(e.to_string()))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_merge_keeps_what_another_copy_changed_and_applies_ours() {
+        let base = Config {
+            device: "Linux PC".into(),
+            opacity: 1.0,
+            ..Config::default()
+        };
+        let theirs = Config {
+            device: "Chris Laptop".into(),
+            ..base.clone()
+        };
+        let ours = Config {
+            opacity: 0.8,
+            ..base.clone()
+        };
+        let merged = Config::merged(&base, &ours, &theirs).unwrap();
+        assert_eq!(merged.device, "Chris Laptop");
+        assert_eq!(merged.opacity, 0.8);
+    }
+
+    #[test]
+    fn a_merge_lets_ours_win_where_both_changed_and_can_remove_a_store() {
+        let base = Config {
+            device: "A".into(),
+            stores: vec![s3("one"), s3("two")],
+            ..Config::default()
+        };
+        let theirs = Config {
+            device: "B".into(),
+            ..base.clone()
+        };
+        let ours = Config {
+            device: "C".into(),
+            stores: vec![s3("one")],
+            ..base.clone()
+        };
+        let merged = Config::merged(&base, &ours, &theirs).unwrap();
+        assert_eq!(merged.device, "C");
+        assert_eq!(merged.stores.len(), 1);
+    }
+
+    #[test]
+    fn a_merge_with_nothing_changed_is_what_is_on_disk() {
+        let base = Config::default();
+        let theirs = Config {
+            device: "Chris Laptop".into(),
+            opacity: 0.5,
+            ..base.clone()
+        };
+        let merged = Config::merged(&base, &base, &theirs).unwrap();
+        assert_eq!(merged.to_bytes().unwrap(), theirs.to_bytes().unwrap());
+    }
 
     fn s3(id: &str) -> StoreConfig {
         StoreConfig {

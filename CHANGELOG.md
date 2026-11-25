@@ -28,6 +28,12 @@ described here but have no tags of their own.
   the updater was handed the AppImage. Releases now publish signed .deb and
   .rpm updates, and a copy whose package tool is missing (a .deb's binary on
   Arch, say) says to update by hand instead.
+- A computer's name kept reverting to "Linux PC" or "Windows PC", bringing
+  the name-this-computer prompt back. A second copy of the app open at the
+  same time, an older one still running during an upgrade for instance,
+  wrote its own stale settings over the file when it saved any setting.
+  Saving now changes only the settings that copy changed and keeps the
+  rest from the file, the name included.
 
 ## [0.4.1] - 2026-11-21
 
