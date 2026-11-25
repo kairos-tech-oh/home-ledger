@@ -224,6 +224,8 @@ pub struct ReconLineView {
     pub bucket_id: String,
     pub bucket_name: String,
     pub notes: String,
+    pub split_group: String,
+    pub split_total: String,
 }
 
 #[derive(Serialize)]
@@ -745,6 +747,19 @@ fn reconciliations_of(doc: &Ledger) -> Vec<ReconciliationView> {
                             .bucket(&line.bucket_id)
                             .map(|b| b.name.clone())
                             .unwrap_or_default(),
+                        split_group: line.split_group.clone(),
+                        split_total: if line.split_group.is_empty() {
+                            String::new()
+                        } else {
+                            amount(
+                                record
+                                    .lines
+                                    .iter()
+                                    .filter(|o| o.split_group == line.split_group)
+                                    .map(|o| o.amount)
+                                    .sum(),
+                            )
+                        },
                     })
                     .collect(),
                 lines_total: amount(lines_total),

@@ -10,6 +10,31 @@ described here but have no tags of their own.
 
 ## [Unreleased]
 
+### Added
+- **Split a charge across buckets.** In a statement, ⑂ beside a charge divides it
+  between buckets: a Costco run can come partly out of Groceries, partly out of
+  Gifts, and the rest out of everyday spending. Each part says how much and from
+  where, and the last takes whatever is left. Settling draws each part from its
+  own bucket, so a split never has to wait for one bucket to run dry. The parts
+  are stored as ordinary charges sharing a `splitGroup`, so totals and older
+  copies of the app read them correctly, and a bank charge that was split is
+  still never imported twice.
+
+### Fixed
+- In Import charges, the dropdowns no longer spill over the labels and the
+  "keep the bank's category" checkbox beside them; each setting's label now
+  sits above it.
+- Updating a .deb or .rpm install failed with "invalid updater binary format":
+  the updater was handed the AppImage. Releases now publish signed .deb and
+  .rpm updates, and a copy whose package tool is missing (a .deb's binary on
+  Arch, say) says to update by hand instead.
+- A computer's name kept reverting to "Linux PC" or "Windows PC", bringing
+  the name-this-computer prompt back. A second copy of the app open at the
+  same time, an older one still running during an upgrade for instance,
+  wrote its own stale settings over the file when it saved any setting.
+  Saving now changes only the settings that copy changed and keeps the
+  rest from the file, the name included.
+
 ## [0.4.1] - 2026-11-21
 
 ### Added

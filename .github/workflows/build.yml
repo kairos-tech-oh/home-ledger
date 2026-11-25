@@ -144,7 +144,9 @@ jobs:
             target/release/bundle/appimage/*.AppImage
             target/release/bundle/appimage/*.AppImage.sig
             target/release/bundle/deb/*.deb
+            target/release/bundle/deb/*.deb.sig
             target/release/bundle/rpm/*.rpm
+            target/release/bundle/rpm/*.rpm.sig
 
   # hl on its own, for a machine with no desktop such as a Raspberry Pi: it
   # needs none of Tauri's libraries, so it builds on a bare runner. 22.04 for

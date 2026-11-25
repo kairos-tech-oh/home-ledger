@@ -142,13 +142,41 @@ impl Writer {
         if let Some(i) = existing {
             let before = &ledger.reconciliations[i].lines;
             for line in &mut record.lines {
-                if let Some(old) = before.iter().find(|o| o.id == line.id)
-                    && line.bank_ref.is_empty()
-                {
+                if !line.bank_ref.is_empty() {
+                    continue;
+                }
+                let old = before.iter().find(|o| o.id == line.id).or_else(|| {
+                    before.iter().find(|o| {
+                        !line.split_group.is_empty()
+                            && !o.bank_ref.is_empty()
+                            && (o.id == line.split_group || o.split_group == line.split_group)
+                    })
+                });
+                if let Some(old) = old {
                     line.bank_ref = old.bank_ref.clone();
                     if line.bank_text.is_empty() {
                         line.bank_text = old.bank_text.clone();
                     }
+                }
+            }
+            let linked: Vec<(String, String, String)> = record
+                .lines
+                .iter()
+                .filter(|l| !l.split_group.is_empty() && !l.bank_ref.is_empty())
+                .map(|l| {
+                    (
+                        l.split_group.clone(),
+                        l.bank_ref.clone(),
+                        l.bank_text.clone(),
+                    )
+                })
+                .collect();
+            for line in &mut record.lines {
+                if line.bank_ref.is_empty()
+                    && let Some((_, r, t)) = linked.iter().find(|(g, _, _)| *g == line.split_group)
+                {
+                    line.bank_ref = r.clone();
+                    line.bank_text = t.clone();
                 }
             }
         }
@@ -239,6 +267,7 @@ impl Writer {
             let mut line: ledger_domain::records::ReconLine = from_json(raw)?;
             // Always a new line: an import never edits one already there.
             line.id = String::new();
+            line.split_group.clear();
             if !line.bucket_id.is_empty() && ledger.bucket(&line.bucket_id).is_none() {
                 line.bucket_id.clear();
             }
@@ -1182,6 +1211,10 @@ mod import_tests {
     use ledger_domain::{Ledger, Money};
     use serde_json::json;
 
+    fn m(text: &str) -> Money {
+        serde_json::from_value(json!(text)).unwrap()
+    }
+
     fn apply(
         ledger: &mut Ledger,
         op: serde_json::Value,
@@ -1336,6 +1369,180 @@ mod import_tests {
         assert_eq!(line.bank_text, "KROGER #920");
     }
 
+    fn costco(ledger: &mut Ledger) -> (String, String) {
+        let id = statement(ledger);
+        apply(
+            ledger,
+            json!({ "op": "reconcile-import", "id": id, "lines": [
+                { "label": "Costco", "amount": "312.45", "spentOn": "2026-11-20",
+                  "bankRef": "txn-C", "bankText": "COSTCO WHSE #0632" }
+            ]}),
+        )
+        .unwrap();
+        let line = ledger.reconciliations[0].lines[1].id.clone();
+        (id, line)
+    }
+
+    fn split(
+        ledger: &mut Ledger,
+        id: &str,
+        parts: serde_json::Value,
+    ) -> Result<ledger_domain::records::AuditEntry, WriteError> {
+        let mut lines = vec![json!({ "id": ledger.reconciliations[0].lines[0].id,
+            "label": "Kept", "amount": 10 })];
+        lines.extend(parts.as_array().unwrap().iter().cloned());
+        apply(
+            ledger,
+            json!({ "op": "reconcile-set", "id": id,
+                    "record": { "card": "Sapphire", "balance": 100, "lines": lines } }),
+        )
+    }
+
+    fn part(id: &str, group: &str, amount: &str, rest: bool) -> serde_json::Value {
+        json!({ "id": id, "label": "Costco", "spentOn": "2026-11-20", "member": "Jordan",
+                "amount": amount, "splitGroup": group, "splitTotal": "312.45", "splitRest": rest })
+    }
+
+    #[test]
+    fn a_split_gives_what_is_left_to_its_rest_part_and_keeps_the_charge_whole() {
+        let mut ledger = Ledger::default();
+        let (id, line) = costco(&mut ledger);
+        split(
+            &mut ledger,
+            &id,
+            json!([
+                part(&line, &line, "150", false),
+                part("", &line, "60.10", false),
+                part("", &line, "0", true)
+            ]),
+        )
+        .unwrap();
+        let lines = &ledger.reconciliations[0].lines;
+        let parts: Vec<_> = lines.iter().filter(|l| l.split_group == line).collect();
+        let amounts: Vec<Money> = parts.iter().map(|l| l.amount).collect();
+        assert_eq!(amounts, [m("150"), m("60.10"), m("102.35")]);
+        assert_eq!(parts.iter().map(|l| l.amount).sum::<Money>(), m("312.45"));
+        assert_eq!(parts[0].id, line, "the first part keeps the charge's id");
+        for p in &parts {
+            assert_eq!(p.bank_ref, "txn-C", "every part keeps the bank link");
+            assert_eq!(p.bank_text, "COSTCO WHSE #0632");
+            assert_eq!(
+                (p.label.as_str(), p.spent_on.as_str()),
+                ("Costco", "2026-11-20")
+            );
+        }
+        let stored = serde_json::to_value(parts[2]).unwrap();
+        assert!(stored.get("splitTotal").is_none() && stored.get("splitRest").is_none());
+    }
+
+    #[test]
+    fn a_split_bank_charge_is_still_imported_only_once() {
+        let mut ledger = Ledger::default();
+        let (id, line) = costco(&mut ledger);
+        split(
+            &mut ledger,
+            &id,
+            json!([part(&line, &line, "200", false), part("", &line, "0", true)]),
+        )
+        .unwrap();
+        let got = apply(
+            &mut ledger,
+            json!({ "op": "reconcile-import", "id": id, "lines": [
+                { "label": "Costco", "amount": "312.45", "bankRef": "txn-C" } ]}),
+        );
+        assert!(matches!(got, Err(WriteError::Unchanged(_))));
+        assert_eq!(ledger.reconciliations[0].lines.len(), 3);
+    }
+
+    #[test]
+    fn parts_that_do_not_add_up_are_refused() {
+        let mut ledger = Ledger::default();
+        let (id, line) = costco(&mut ledger);
+        let got = split(
+            &mut ledger,
+            &id,
+            json!([
+                part(&line, &line, "150", false),
+                part("", &line, "100", false)
+            ]),
+        );
+        assert!(matches!(got, Err(WriteError::Refused(m)) if m.contains("312.45")));
+        assert_eq!(
+            ledger.reconciliations[0].lines[1].amount,
+            m("312.45"),
+            "nothing changed"
+        );
+    }
+
+    #[test]
+    fn a_rest_part_that_would_be_empty_or_negative_is_refused() {
+        let mut ledger = Ledger::default();
+        let (id, line) = costco(&mut ledger);
+        for big in ["312.45", "400"] {
+            let got = split(
+                &mut ledger,
+                &id,
+                json!([part(&line, &line, big, false), part("", &line, "0", true)]),
+            );
+            assert!(matches!(got, Err(WriteError::Refused(_))), "{big}");
+        }
+        let two_rests = split(
+            &mut ledger,
+            &id,
+            json!([part(&line, &line, "0", true), part("", &line, "0", true)]),
+        );
+        assert!(matches!(two_rests, Err(WriteError::Refused(_))));
+    }
+
+    #[test]
+    fn a_split_cannot_mix_charges_and_refunds() {
+        let mut ledger = Ledger::default();
+        let (id, line) = costco(&mut ledger);
+        let mut minus = part("", &line, "-10", false);
+        minus["splitTotal"] = json!("312.45");
+        let got = split(
+            &mut ledger,
+            &id,
+            json!([part(&line, &line, "322.45", false), minus]),
+        );
+        assert!(matches!(got, Err(WriteError::Refused(_))));
+    }
+
+    #[test]
+    fn a_split_down_to_one_part_is_an_ordinary_charge_again() {
+        let mut ledger = Ledger::default();
+        let (id, line) = costco(&mut ledger);
+        split(
+            &mut ledger,
+            &id,
+            json!([part(&line, &line, "200", false), part("", &line, "0", true)]),
+        )
+        .unwrap();
+        split(
+            &mut ledger,
+            &id,
+            json!([{ "id": line, "label": "Costco", "amount": "312.45",
+            "splitGroup": line }]),
+        )
+        .unwrap();
+        let only = &ledger.reconciliations[0].lines[1];
+        assert!(only.split_group.is_empty());
+        assert_eq!(only.amount, m("312.45"));
+        assert_eq!(only.bank_ref, "txn-C");
+    }
+
+    #[test]
+    fn a_stored_split_that_does_not_hold_together_reads_as_plain_charges() {
+        let record: ledger_domain::records::Reconciliation = serde_json::from_value(json!({
+            "card": "Sapphire", "lines": [
+                { "label": "A", "amount": "5", "splitGroup": "0123456789abcdef0123456789abcdef" },
+                { "label": "B", "amount": "-5", "splitGroup": "0123456789abcdef0123456789abcdef" } ] }))
+        .unwrap();
+        let read = crate::clean::reconciliation(record, "", true).unwrap();
+        assert!(read.lines.iter().all(|l| l.split_group.is_empty()));
+        assert_eq!(read.lines.len(), 2);
+    }
+
     #[test]
     fn nothing_worth_adding_changes_nothing() {
         let mut ledger = Ledger::default();
@@ -1480,6 +1687,35 @@ mod cover_tests {
         assert_eq!(cash(&s.ledger, "Overflow"), Money::from(500));
         assert_eq!(cash(&s.ledger, "Checking"), Money::from(1000));
         assert_eq!(cash(&s.ledger, "Savings"), Money::from(620));
+    }
+
+    #[test]
+    fn a_split_charge_settles_from_each_of_its_buckets_without_asking() {
+        let mut s = setup(json!({}));
+        let first = s.ledger.reconciliations[0].lines[0].id.clone();
+        let bucket_source = s.ledger.reconciliations[0].bucket_source_id.clone();
+        let spend_source = s.ledger.reconciliations[0].spend_source_id.clone();
+        apply(
+            &mut s.ledger,
+            Op::ReconcileSet {
+                id: s.statement.clone(),
+                record: json!({ "card": "Sapphire", "balance": 200,
+                    "bucketSourceId": bucket_source, "spendSourceId": spend_source, "lines": [
+                    { "id": first, "label": "Costco", "amount": 100, "bucketId": s.groceries,
+                      "splitGroup": first, "splitTotal": 180 },
+                    { "label": "Costco", "amount": 50, "bucketId": s.overflow,
+                      "splitGroup": first, "splitTotal": 180 },
+                    { "label": "Costco", "amount": 0, "splitGroup": first, "splitTotal": 180,
+                      "splitRest": true },
+                    { "label": "Gas", "amount": 20 } ] }),
+            },
+        )
+        .unwrap();
+        settle(&mut s, vec![]).unwrap();
+        assert_eq!(cash(&s.ledger, "Groceries"), Money::from(20));
+        assert_eq!(cash(&s.ledger, "Overflow"), Money::from(450));
+        assert_eq!(cash(&s.ledger, "Checking"), Money::from(950));
+        undo_restores(&mut s);
     }
 
     #[test]

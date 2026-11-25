@@ -384,6 +384,12 @@ pub struct ReconLine {
     /// label is the cleaner merchant name ("Kroger").
     #[serde(skip_serializing_if = "String::is_empty")]
     pub bank_text: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub split_group: String,
+    #[serde(skip_serializing)]
+    pub split_total: Option<Money>,
+    #[serde(skip_serializing)]
+    pub split_rest: bool,
 }
 
 /// What a settle actually moved, kept so an undo can return it exactly.

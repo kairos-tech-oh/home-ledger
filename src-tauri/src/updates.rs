@@ -61,12 +61,33 @@ pub async fn update_install<R: Runtime>(
         return Err(CommandError::Message("check for an update first".into()));
     };
     let version = update.version.clone();
+    if let Some(tool) = missing_package_tool() {
+        return Err(CommandError::Message(format!(
+            "could not install {version}: this copy updates through {tool}, which this system \
+             does not have. Download {version} from \
+             https://github.com/kairos-tech-oh/home-ledger/releases and replace it by hand."
+        )));
+    }
     update
         .download_and_install(|_, _| {}, || {})
         .await
         .map_err(|e| CommandError::Message(format!("could not install {version}: {e}")))?;
     tracing::info!(%version, "update installed; restarting");
     app.restart();
+}
+
+/// A deb or rpm build installs updates with dpkg or rpm; this is that tool when
+/// it is absent, as with a .deb's binary copied onto Arch.
+fn missing_package_tool() -> Option<&'static str> {
+    use tauri::utils::{config::BundleType, platform::bundle_type};
+    let tool = match bundle_type()? {
+        BundleType::Deb => "dpkg",
+        BundleType::Rpm => "rpm",
+        _ => return None,
+    };
+    let path = std::env::var_os("PATH")?;
+    let found = std::env::split_paths(&path).any(|dir| dir.join(tool).is_file());
+    (!found).then_some(tool)
 }
 
 /// This build's own version, for the About section.

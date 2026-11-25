@@ -326,6 +326,22 @@
     align-items: end;
     margin-bottom: 0.5rem;
   }
+  .mapping .field:not(.check),
+  .defaults .field:not(.check) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+    align-self: end;
+  }
+  .mapping .field :global(select),
+  .mapping .field :global(input:not([type="checkbox"])),
+  .defaults .field :global(select),
+  .defaults .field :global(input:not([type="checkbox"])) {
+    width: 100%;
+    min-width: 0;
+  }
+  .defaults .field.check {
+    align-self: center;
+  }
   .table-wrap {
     max-height: 22rem;
     overflow: auto;
